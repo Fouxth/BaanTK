@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ✅ Rules สำหรับ borrowers collection
+    match /borrowers/{borrowerId} {
+      // อ่านได้เฉพาะเจ้าของหรือ admin
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // สร้างได้เฉพาะเจ้าของ
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.userId &&
+        validateBorrowerData();
+      
+      // อัปเดตได้เฉพาะ admin
+      allow update: if isAdmin();
+      
+      // ลบได้เฉพาะ admin
+      allow delete: if isAdmin();
+    }
+    
+    // ✅ Rules สำหรับ slips collection
+    match /slips/{slipId} {
+      // อ่านได้เฉพาะเจ้าของหรือ admin
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // สร้างได้เฉพาะเจ้าของ
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // อัปเดตได้เฉพาะ admin (เพื่ออนุมัติ/ปฏิเสธ)
+      allow update: if isAdmin();
+      
+      // ลบได้เฉพาะ admin
+      allow delete: if isAdmin();
+    }
+    
+    // ✅ Rules สำหรับ images collection
+    match /images/{imageId} {
+      // อ่านได้เฉพาะเจ้าของหรือ admin
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // สร้างได้เฉพาะเจ้าของ
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // อัปเดตได้เฉพาะ admin
+      allow update: if isAdmin();
+      
+      // ลบได้เฉพาะ admin
+      allow delete: if isAdmin();
+    }
+    
+    // ✅ Rules สำหรับ blacklist collection
+    match /blacklist/{blacklistId} {
+      // อ่านได้เฉพาะ admin
+      allow read: if isAdmin();
+      
+      // สร้าง/อัปเดต/ลบได้เฉพาะ admin
+      allow write: if isAdmin();
+    }
+    
+    // ✅ Rules สำหรับ reminders collection  
+    match /reminders/{reminderId} {
+      // อ่านได้เฉพาะ admin
+      allow read: if isAdmin();
+      
+      // สร้างได้จาก server functions
+      allow create: if isSystemRequest();
+      
+      // อัปเดต/ลบได้เฉพาะ admin
+      allow update, delete: if isAdmin();
+    }
+    
+    // ✅ Rules สำหรับ settings collection
+    match /settings/{settingId} {
+      // อ่านได้ทุกคน (สำหรับดูอัตราดอกเบี้ย)
+      allow read: if true;
+      
+      // เขียนได้เฉพาะ admin
+      allow write: if isAdmin();
+    }
+    
+    // ✅ Functions สำหรับตรวจสอบสิทธิ์
+    function isAdmin() {
+      return request.auth != null && 
+        request.auth.token.admin == true;
+    }
+    
+    function isSystemRequest() {
+      return request.auth == null; // Server functions ไม่มี auth context
+    }
+    
+    function validateBorrowerData() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+        'firstName', 'lastName', 'birthDate', 'idCard', 
+        'address', 'totalLoan', 'frequency', 'userId'
+      ]) &&
+      data.firstName is string && data.firstName.size() > 0 &&
+      data.lastName is string && data.lastName.size() > 0 &&
+      data.idCard is string && data.idCard.size() == 13 &&
+      data.totalLoan is number && data.totalLoan > 0 && data.totalLoan <= 50000 &&
+      data.frequency in ['daily', 'weekly', 'monthly'];
+    }
+  }
+}
+
+// ✅ Storage Rules
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Rules สำหรับ line-uploads (รูปจาก LINE)
+    match /line-uploads/{allPaths=**} {
+      allow read: if request.auth != null || isPublicFile();
+      allow write: if false; // เฉพาะ server functions เท่านั้น
+    }
+    
+    // Rules สำหรับ uploads ทั่วไป
+    match /uploads/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        resource.size < 5 * 1024 * 1024 && // ไม่เกิน 5MB
+        resource.contentType.matches('image/.*'); // เฉพาะรูปภาพ
+    }
+    
+    function isPublicFile() {
+      return true; // อนุญาตให้ดูรูปภาพได้ทุกคน (สำหรับ admin dashboard)
+    }
+  }
+}

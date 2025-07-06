@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ลงทะเบียนผู้กู้</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="bg-white shadow-lg rounded-lg p-8 w-full max-w-md">
+    <h2 class="text-2xl font-bold text-center text-green-600 mb-6">
+      📄 ลงทะเบียนผู้กู้
+    </h2>
+    <form id="register-form" class="space-y-4">
+      <!-- ช่องกรอกข้อมูลส่วนตัว -->
+      <div class="space-y-4">
+        <div class="text-sm font-medium text-gray-700 mb-2">ข้อมูลส่วนตัว</div>
+        
+        <div class="relative">
+          <input name="idCard" id="idCard" placeholder="เลขบัตรประชาชน 13 หลัก" required
+            class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" 
+            maxlength="13" pattern="[0-9]{13}" />
+          <button type="button" id="verify-id" 
+            class="absolute right-2 top-2 bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+            ตรวจสอบ
+          </button>
+        </div>
+        
+        <input name="firstName" id="firstName" placeholder="ชื่อ" required readonly
+          class="w-full p-3 border border-gray-300 rounded bg-gray-100 focus:ring-2 focus:ring-green-400" />
+          
+        <input name="lastName" id="lastName" placeholder="นามสกุล" required readonly
+          class="w-full p-3 border border-gray-300 rounded bg-gray-100 focus:ring-2 focus:ring-green-400" />
+          
+        <input name="birthDate" id="birthDate" placeholder="วันเกิด เช่น 01/01/1999" required readonly
+          class="w-full p-3 border border-gray-300 rounded bg-gray-100 focus:ring-2 focus:ring-green-400" />
+      </div>
+
+      <!-- ช่องอัปโหลดบัตรประชาชน -->
+      <div class="space-y-4">
+        <div class="text-sm font-medium text-gray-700 mb-2">📷 อัปโหลดบัตรประชาชน</div>
+        
+        <div class="relative">
+          <input type="file" name="idCardImage" id="idCardImage" accept="image/*" capture="environment" required
+            class="hidden" />
+          <div id="upload-area" 
+            class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition">
+            <div id="upload-content">
+              <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              <p class="text-gray-600 mb-2">คลิกเพื่อถ่ายรูป หรือเลือกไฟล์</p>
+              <p class="text-xs text-gray-500">รองรับ JPG, PNG (ขนาดไม่เกิน 5MB)</p>
+            </div>
+            <div id="image-preview" class="hidden">
+              <img id="preview-img" class="max-w-full h-48 object-cover rounded-lg mx-auto" />
+              <p class="text-green-600 text-sm mt-2">✅ อัปโหลดรูปภาพเรียบร้อย</p>
+              <button type="button" id="change-image" class="mt-2 text-blue-500 text-sm hover:underline">
+                เปลี่ยนรูป
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+          <p class="text-xs text-yellow-800">
+            💡 <strong>คำแนะนำ:</strong> ถ่ายรูปบัตรประชาชนด้านหน้าให้ชัดเจน อ่านข้อความได้ทุกตัว
+          </p>
+        </div>
+      </div>
+
+      <!-- ช่องที่อยู่ -->
+      <div class="space-y-4">
+        <div class="text-sm font-medium text-gray-700 mb-2">ข้อมูลที่อยู่</div>
+        
+        <div class="relative">
+          <textarea name="addressOnId" id="addressOnId" placeholder="ที่อยู่ตามบัตรประชาชน" required readonly
+            class="w-full p-3 border border-gray-300 rounded bg-gray-100 focus:ring-2 focus:ring-green-400 min-h-[80px] resize-none"></textarea>
+          <div class="absolute top-2 right-2">
+            <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">ตามบัตร</span>
+          </div>
+        </div>
+        
+        <div class="relative">
+          <textarea name="currentAddress" id="currentAddress" placeholder="ที่อยู่ปัจจุบัน (สามารถแก้ไขได้)" required
+            class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 min-h-[80px] resize-none"></textarea>
+          <div class="absolute top-2 right-2">
+            <button type="button" id="copy-address" 
+              class="text-xs text-blue-500 bg-blue-100 px-2 py-1 rounded hover:bg-blue-200">
+              คัดลอกจากบัตร
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ข้อมูลการกู้เงิน -->
+      <div class="space-y-4">
+        <div class="text-sm font-medium text-gray-700 mb-2">ข้อมูลการกู้เงิน</div>
+        
+        <input name="amount" type="number" placeholder="จำนวนเงินที่ต้องการกู้" required
+          class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" 
+          min="1000" max="100000" />
+          
+        <select name="frequency" required
+          class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400">
+          <option value="">เลือกรูปแบบการชำระเงิน</option>
+          <option value="daily">รายวัน</option>
+          <option value="weekly">รายอาทิตย์</option>
+          <option value="monthly">รายเดือน</option>
+        </select>
+      </div>
+      
+      <button type="submit" id="submit-btn"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded transition disabled:bg-gray-400">
+        ส่งข้อมูล
+      </button>
+    </form>
+  </div>
+
+  <script>
+    // ข้อมูลจำลองสำหรับตรวจสอบบัตรประชาชน (ในการใช้งานจริงควรเชื่อมต่อกับ API ของกรมการปกครอง)
+    const idCardDatabase = {
+      '1234567890123': {
+        firstName: 'สมชาย',
+        lastName: 'ใจดี',
+        birthDate: '15/03/1985',
+        address: '123 หมู่ 5 ตำบลบางกะปิ อำเภอห้วยขวาง จังหวัดกรุงเทพมหานคร 10310'
+      },
+      '9876543210987': {
+        firstName: 'สมหญิง',
+        lastName: 'รักสงบ',
+        birthDate: '22/07/1990',
+        address: '456 หมู่ 2 ตำบลลาดพร้าว อำเภอจตุจักร จังหวัดกรุงเทพมหานคร 10900'
+      },
+      '5555555555555': {
+        firstName: 'ทดสอบ',
+        lastName: 'ระบบ',
+        birthDate: '01/01/2000',
+        address: '789 หมู่ 1 ตำบลบางซื่อ อำเภอบางซื่อ จังหวัดกรุงเทพมหานคร 10800'
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      let userId = null;
+      let isIdVerified = false;
+      
+      // เพิ่ม event listeners สำหรับการตรวจสอบบัตร
+      document.getElementById('verify-id').addEventListener('click', verifyIdCard);
+      document.getElementById('copy-address').addEventListener('click', copyAddress);
+      
+      // เพิ่ม event listeners สำหรับการอัปโหลดรูป
+      setupImageUpload();
+      
+      // ป้องกันการส่งฟอร์มหากยังไม่ได้ตรวจสอบบัตร
+      document.getElementById('submit-btn').disabled = true;
+      
+      // ฟังก์ชันตรวจสอบบัตรประชาชน
+      async function verifyIdCard() {
+        const idCard = document.getElementById('idCard').value;
+        
+        if (!idCard || idCard.length !== 13 || !/^\d{13}$/.test(idCard)) {
+          alert('⚠️ กรุณากรอกเลขบัตรประชาชน 13 หลัก');
+          return;
+        }
+        
+        const verifyBtn = document.getElementById('verify-id');
+        verifyBtn.textContent = 'กำลังตรวจสอบ...';
+        verifyBtn.disabled = true;
+        
+        try {
+          // จำลองการเรียก API ตรวจสอบบัตร
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          const userData = idCardDatabase[idCard];
+          
+          if (userData) {
+            // พบข้อมูลในระบบ
+            document.getElementById('firstName').value = userData.firstName;
+            document.getElementById('lastName').value = userData.lastName;
+            document.getElementById('birthDate').value = userData.birthDate;
+            document.getElementById('addressOnId').value = userData.address;
+            document.getElementById('currentAddress').value = userData.address; // ใส่ที่อยู่เริ่มต้น
+            
+            isIdVerified = true;
+            document.getElementById('submit-btn').disabled = false;
+            
+            verifyBtn.textContent = '✅ ตรวจสอบแล้ว';
+            verifyBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            verifyBtn.classList.add('bg-green-500');
+            
+            // ไฮไลต์ช่องที่อยู่ปัจจุบันให้ผู้ใช้สังเกต
+            document.getElementById('currentAddress').focus();
+            
+            alert('✅ ตรวจสอบข้อมูลสำเร็จ!\nกรุณาตรวจสอบที่อยู่ปัจจุบันว่าถูกต้อง');
+            
+          } else {
+            // ไม่พบข้อมูล
+            alert('❌ ไม่พบข้อมูลบัตรประชาชนนี้ในระบบ\nกรุณาตรวจสอบหมายเลขและลองใหม่');
+            clearForm();
+          }
+          
+        } catch (error) {
+          console.error('Error verifying ID card:', error);
+          alert('❌ เกิดข้อผิดพลาดในการตรวจสอบบัตร');
+          clearForm();
+        } finally {
+          verifyBtn.textContent = 'ตรวจสอบ';
+          verifyBtn.disabled = false;
+          verifyBtn.classList.remove('bg-green-500');
+          verifyBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        }
+      }
+      
+      // ฟังก์ชันตั้งค่าการอัปโหลดรูป
+      function setupImageUpload() {
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('idCardImage');
+        const uploadContent = document.getElementById('upload-content');
+        const imagePreview = document.getElementById('image-preview');
+        const previewImg = document.getElementById('preview-img');
+        const changeImageBtn = document.getElementById('change-image');
+        
+        // คลิกที่พื้นที่อัปโหลด
+        uploadArea.addEventListener('click', () => {
+          fileInput.click();
+        });
+        
+        // ลากไฟล์เข้ามา
+        uploadArea.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          uploadArea.classList.add('border-blue-500', 'bg-blue-50');
+        });
+        
+        uploadArea.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+          e.preventDefault();
+          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+          
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            handleFileSelect(files[0]);
+          }
+        });
+        
+        // เมื่อเลือกไฟล์
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+          }
+        });
+        
+        // ปุ่มเปลี่ยนรูป
+        changeImageBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          fileInput.click();
+        });
+        
+        function handleFileSelect(file) {
+          // ตรวจสอบประเภทไฟล์
+          if (!file.type.startsWith('image/')) {
+            alert('⚠️ กรุณาเลือกไฟล์รูปภาพเท่านั้น');
+            return;
+          }
+          
+          // ตรวจสอบขนาดไฟล์ (5MB)
+          if (file.size > 5 * 1024 * 1024) {
+            alert('⚠️ ขนาดไฟล์ต้องไม่เกิน 5MB');
+            return;
+          }
+          
+          // แสดงตัวอย่างรูป
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            uploadContent.classList.add('hidden');
+            imagePreview.classList.remove('hidden');
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+      
+      // ฟังก์ชันแปลงรูปเป็น Base64
+      async function getImageBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+      function copyAddress() {
+        const addressOnId = document.getElementById('addressOnId').value;
+        if (addressOnId) {
+          document.getElementById('currentAddress').value = addressOnId;
+          alert('✅ คัดลอกที่อยู่แล้ว');
+        } else {
+          alert('⚠️ กรุณาตรวจสอบบัตรประชาชนก่อน');
+        }
+      }
+      
+      // ฟังก์ชันเคลียร์ฟอร์ม
+      function clearForm() {
+        document.getElementById('firstName').value = '';
+        document.getElementById('lastName').value = '';
+        document.getElementById('birthDate').value = '';
+        document.getElementById('addressOnId').value = '';
+        document.getElementById('currentAddress').value = '';
+        isIdVerified = false;
+        document.getElementById('submit-btn').disabled = true;
+      }
+      
+      // ตรวจสอบเมื่อเปลี่ยนเลขบัตร
+      document.getElementById('idCard').addEventListener('input', function() {
+        if (isIdVerified) {
+          clearForm();
+          const verifyBtn = document.getElementById('verify-id');
+          verifyBtn.textContent = 'ตรวจสอบ';
+          verifyBtn.classList.remove('bg-green-500');
+          verifyBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        }
+      });
+      
+      try {
+        console.log("🚀 เริ่มต้น LIFF...");
+        await liff.init({ liffId: "2007493964-gWv9bxBR" });
+        
+        console.log("✅ LIFF initialized");
+        console.log("📱 isInClient:", liff.isInClient());
+        console.log("🔐 isLoggedIn:", liff.isLoggedIn());
+        
+        if (!liff.isLoggedIn()) {
+          console.log("❌ ยังไม่ได้ login, กำลัง redirect...");
+          liff.login();
+          return;
+        }
+        
+        const profile = await liff.getProfile();
+        console.log("👤 User profile:", profile);
+        userId = profile.userId;
+        console.log("🆔 User ID:", userId);
+        
+      } catch (liffError) {
+        console.error("❌ LIFF initialization error:", liffError);
+        alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ LINE");
+        return;
+      }
+
+      // ตรวจสอบว่า userId มีค่าหรือไม่
+      if (!userId) {
+        console.error("❌ ไม่สามารถรับ userId ได้");
+        userId = 'test-user-' + Date.now(); // ใช้ test ID ชั่วคราว
+        console.log("🔧 ใช้ test userId:", userId);
+      }
+
+      const form = document.getElementById("register-form");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        // ตรวจสอบว่าได้ทำการตรวจสอบบัตรแล้วหรือไม่
+        if (!isIdVerified) {
+          alert("⚠️ กรุณาตรวจสอบบัตรประชาชนก่อนส่งข้อมูล");
+          return;
+        }
+        
+        // ตรวจสอบว่าได้อัปโหลดรูปบัตรแล้วหรือไม่
+        const idCardFile = document.getElementById('idCardImage').files[0];
+        if (!idCardFile) {
+          alert("⚠️ กรุณาอัปโหลดรูปบัตรประชาชนก่อนส่งข้อมูล");
+          return;
+        }
+        
+        // ตรวจสอบ userId อีกครั้งก่อนส่ง
+        if (!userId) {
+          console.error("❌ userId ยังไม่พร้อม");
+          alert("❌ กรุณารอสักครู่แล้วลองใหม่");
+          return;
+        }
+        
+        try {
+          // แสดงการโหลด
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const originalText = submitBtn.textContent;
+          submitBtn.textContent = "กำลังส่งข้อมูล...";
+          submitBtn.disabled = true;
+
+          const formData = Object.fromEntries(new FormData(form));
+          formData.userId = userId; // ใช้ userId ที่ได้จาก LIFF
+          
+          // เพิ่มรูปบัตรประชาชนเป็น Base64
+          const idCardFile = document.getElementById('idCardImage').files[0];
+          if (idCardFile) {
+            try {
+              formData.idCardImage = await getImageBase64(idCardFile);
+              formData.idCardImageName = idCardFile.name;
+              formData.idCardImageSize = idCardFile.size;
+            } catch (error) {
+              console.error('Error converting image:', error);
+              alert('❌ เกิดข้อผิดพลาดในการประมวลผลรูปภาพ');
+              return;
+            }
+          }
+          
+          // เปลี่ยนชื่อฟิลด์ address เป็น addressOnId และ currentAddress
+          formData.address = formData.addressOnId; // เพื่อความเข้ากันได้กับ backend เดิม
+          
+          console.log("📤 ส่งข้อมูล:", formData);
+
+          // ✅ ตรวจสอบเลขบัตร
+          if (!/^\d{13}$/.test(formData.idCard)) {
+            alert("⛔️ เลขบัตรประชาชนต้องมี 13 หลักและเป็นตัวเลข");
+            return;
+          }
+
+          // ✅ ตรวจสอบข้อมูลครบหรือไม่
+          const required = ['firstName', 'lastName', 'birthDate', 'idCard', 'addressOnId', 'currentAddress', 'amount', 'frequency'];
+          for (const field of required) {
+            if (!formData[field]) {
+              alert(`⛔️ กรุณากรอก ${field} ให้ครบถ้วน`);
+              return;
+            }
+          }
+          
+          // ตรวจสอบรูปบัตรประชาชน
+          if (!formData.idCardImage) {
+            alert("⛔️ กรุณาอัปโหลดรูปบัตรประชาชน");
+            return;
+          }
+
+          // ✅ ส่งเข้า backend - ใช้ webhook endpoint ที่ถูกต้อง
+          const apiUrl = window.location.hostname === 'localhost' 
+            ? 'http://localhost:5001/baan-tk/us-central1/webhook/api/liff-register'
+            : 'https://us-central1-baan-tk.cloudfunctions.net/webhook/api/liff-register';
+
+          console.log("🌐 API URL:", apiUrl);
+
+          const res = await fetch(apiUrl, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(formData),
+            mode: 'cors'
+          });
+
+          console.log("📨 Response status:", res.status);
+          
+          if (res.ok) {
+            const result = await res.json();
+            console.log("✅ Success:", result);
+
+            // ✅ ส่งข้อความกลับไปที่แชท LINE
+            const message = `✅ ลงทะเบียนสำเร็จ!\n\nชื่อ: ${formData.firstName} ${formData.lastName}\nวันเกิด: ${formData.birthDate}\nบัตรประชาชน: ${formData.idCard}\nที่อยู่ตามบัตร: ${formData.addressOnId}\nที่อยู่ปัจจุบัน: ${formData.currentAddress}\nจำนวนเงิน: ${formData.amount} บาท\nรูปแบบการชำระ: ${formData.frequency}`;
+
+            try {
+              // ตรวจสอบว่าสามารถส่งข้อความได้หรือไม่
+              if (liff.isInClient()) {
+                await liff.sendMessages([{ 
+                  type: "text", 
+                  text: message.substring(0, 5000) // จำกัดความยาวข้อความ
+                }]);
+                alert("✅ ลงทะเบียนสำเร็จ! ข้อความถูกส่งไปยัง LINE แล้ว");
+                setTimeout(() => liff.closeWindow(), 2000);
+              } else {
+                // ถ้าไม่ได้เปิดจาก LINE app
+                alert("✅ ลงทะเบียนสำเร็จ!\n\n" + message);
+                console.log("📱 ไม่ได้เปิดจาก LINE app - ไม่สามารถส่งข้อความได้");
+              }
+            } catch (sendErr) {
+              console.error("❌ sendMessages error:", sendErr);
+              alert("✅ ลงทะเบียนสำเร็จ!\n\n" + message + "\n\n(ไม่สามารถส่งข้อความใน LINE ได้)");
+            }
+          } else {
+            const errorData = await res.text();
+            console.error("❌ Error response:", errorData);
+            alert(`❌ เกิดข้อผิดพลาด: ${errorData}`);
+          }
+
+        } catch (error) {
+          console.error("❌ Submit error:", error);
+          console.log("🔍 Debug info:", {
+            userId: userId,
+            errorType: error.constructor.name,
+            errorMessage: error.message,
+            stack: error.stack
+          });
+          alert(`❌ เกิดข้อผิดพลาด: ${error.message}`);
+        } finally {
+          // คืนค่าปุ่ม
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if (submitBtn) {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+          }
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>

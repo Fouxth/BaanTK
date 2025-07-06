@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - BaanTK</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        .card { transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .status-pending { background: #FEF3C7; color: #D97706; }
+        .status-approved { background: #D1FAE5; color: #059669; }
+        .status-rejected { background: #FEE2E2; color: #DC2626; }
+        .sidebar { min-height: 100vh; }
+        .main-content { 
+            margin-left: 250px; 
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .container-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(100vh - 120px);
+        }
+        .borrowers-table {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        @media (max-width: 768px) {
+            .main-content { margin-left: 0; }
+            .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+            .sidebar.active { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Sidebar -->
+    <div id="sidebar" class="sidebar fixed left-0 top-0 w-64 bg-white shadow-lg z-50">
+        <div class="p-6 border-b">
+            <h1 class="text-2xl font-bold text-green-600">
+                <i class="fas fa-building mr-2"></i>BaanTK Admin
+            </h1>
+        </div>
+        <nav class="mt-6">
+            <a href="#dashboard" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('dashboard')">
+                <i class="fas fa-tachometer-alt mr-3"></i>แดชบอร์ด
+            </a>
+            <a href="#borrowers" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('borrowers')">
+                <i class="fas fa-users mr-3"></i>ผู้กู้เงิน
+            </a>
+            <a href="#slips" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('slips')">
+                <i class="fas fa-receipt mr-3"></i>สลิปชำระเงิน
+            </a>
+            <a href="#documents" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('documents')">
+                <i class="fas fa-file-image mr-3"></i>เอกสาร
+            </a>
+            <a href="#reports" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('reports')">
+                <i class="fas fa-chart-bar mr-3"></i>รายงาน
+            </a>
+            <a href="#settings" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('settings')">
+                <i class="fas fa-cog mr-3"></i>ตั้งค่า
+            </a>
+        </nav>
+    </div>
+
+    <!-- Mobile Menu Button -->
+    <button id="menuBtn" class="md:hidden fixed top-4 left-4 z-50 bg-green-600 text-white p-2 rounded-md">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 id="pageTitle" class="text-2xl font-semibold text-gray-800">แดชบอร์ด</h2>
+                    <p class="text-gray-600">ระบบจัดการกู้เงิน BaanTK</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md" onclick="refreshData()">
+                        <i class="fas fa-sync-alt mr-2"></i>รีเฟรช
+                    </button>
+                    <div class="text-sm text-gray-500">
+                        <i class="fas fa-clock mr-1"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="p-6 container-wrapper">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">ผู้กู้ทั้งหมด</p>
+                            <p class="text-2xl font-bold text-gray-800" id="totalBorrowers">-</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-users text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รออนุมัติ</p>
+                            <p class="text-2xl font-bold text-orange-600" id="pendingBorrowers">-</p>
+                        </div>
+                        <div class="bg-orange-100 p-3 rounded-full">
+                            <i class="fas fa-clock text-orange-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">ยอดกู้รวม</p>
+                            <p class="text-2xl font-bold text-green-600" id="totalLoan">-</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <i class="fas fa-money-bill-wave text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">ยอดค้างชำระ</p>
+                            <p class="text-2xl font-bold text-red-600" id="outstandingAmount">-</p>
+                        </div>
+                        <div class="bg-red-100 p-3 rounded-full">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">สถิติการกู้เงิน</h3>
+                    <canvas id="loanChart"></canvas>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">สถานะคำขอ</h3>
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Borrowers Section -->
+        <section id="borrowers" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">รายชื่อผู้กู้เงิน</h3>
+                </div>
+                <div class="overflow-x-auto borrowers-table">
+                    <table class="min-w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-นามสกุล</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนเงิน</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่สมัคร</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="borrowersTableBody" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slips Section -->
+        <section id="slips" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">สลิปชำระเงิน</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนเงิน</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="slipsTableBody" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Documents Section -->
+        <section id="documents" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">เอกสารที่อัปโหลด</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6" id="documentsGrid">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Section -->
+        <section id="reports" class="p-6 hidden container-wrapper">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">รายงานรายวัน</h3>
+                    <canvas id="dailyChart"></canvas>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">รายงานรายเดือน</h3>
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">ตั้งค่าระบบ</h3>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อัตราดอกเบี้ยรายวัน (%)</label>
+                            <input type="number" id="dailyInterest" class="w-full p-3 border rounded-md" value="20">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อัตราดอกเบี้ยรายอาทิตย์ (%)</label>
+                            <input type="number" id="weeklyInterest" class="w-full p-3 border rounded-md" value="15">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อัตราดอกเบี้ยรายเดือน (%)</label>
+                            <input type="number" id="monthlyInterest" class="w-full p-3 border rounded-md" value="10">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">วงเงินกู้สูงสุด (บาท)</label>
+                            <input type="number" id="maxLoan" class="w-full p-3 border rounded-md" value="50000">
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-md" onclick="saveSettings()">
+                            <i class="fas fa-save mr-2"></i>บันทึกการตั้งค่า
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal for Borrower Details -->
+    <div id="borrowerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">รายละเอียดผู้กู้เงิน</h3>
+                    <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="borrowerDetails" class="p-6">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let borrowersData = [];
+        let slipsData = [];
+        let documentsData = [];
+        let currentSection = 'dashboard';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            loadAllData();
+            initCharts();
+            
+            // Mobile menu toggle
+            document.getElementById('menuBtn').addEventListener('click', function() {
+                document.getElementById('sidebar').classList.toggle('active');
+            });
+        });
+
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('th-TH');
+        }
+
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Show selected section
+            document.getElementById(sectionName).classList.remove('hidden');
+            
+            // Update active nav item
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('bg-green-50', 'text-green-600');
+            });
+            event.target.classList.add('bg-green-50', 'text-green-600');
+            
+            // Update page title
+            const titles = {
+                dashboard: 'แดชบอร์ด',
+                borrowers: 'ผู้กู้เงิน',
+                slips: 'สลิปชำระเงิน',
+                documents: 'เอกสาร',
+                reports: 'รายงาน',
+                settings: 'ตั้งค่า'
+            };
+            document.getElementById('pageTitle').textContent = titles[sectionName];
+            
+            currentSection = sectionName;
+            
+            // Load section-specific data
+            if (sectionName === 'borrowers') loadBorrowersTable();
+            else if (sectionName === 'slips') loadSlipsTable();
+            else if (sectionName === 'documents') loadDocumentsGrid();
+            else if (sectionName === 'reports') loadReportsCharts();
+            
+            // Close mobile menu
+            document.getElementById('sidebar').classList.remove('active');
+        }
+
+        async function loadAllData() {
+            try {
+                // Load borrowers
+                const borrowersResponse = await fetch('/api/admin/borrowers');
+                borrowersData = await borrowersResponse.json();
+                
+                // Load slips
+                const slipsResponse = await fetch('/api/admin/slips');
+                slipsData = await slipsResponse.json();
+                
+                // Load documents
+                const documentsResponse = await fetch('/api/admin/images');
+                documentsData = await documentsResponse.json();
+                
+                updateDashboardStats();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showAlert('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
+            }
+        }
+
+        function updateDashboardStats() {
+            const totalBorrowers = borrowersData.length;
+            const pendingBorrowers = borrowersData.filter(b => b.status === 'pending').length;
+            const totalLoan = borrowersData.reduce((sum, b) => sum + (b.totalLoan || 0), 0);
+            const outstandingAmount = borrowersData.reduce((sum, b) => {
+                if (b.status === 'approved') {
+                    return sum + (b.totalLoan || 0) + ((b.totalLoan || 0) * (b.interestRate || 0));
+                }
+                return sum;
+            }, 0);
+
+            document.getElementById('totalBorrowers').textContent = totalBorrowers;
+            document.getElementById('pendingBorrowers').textContent = pendingBorrowers;
+            document.getElementById('totalLoan').textContent = totalLoan.toLocaleString() + ' บาท';
+            document.getElementById('outstandingAmount').textContent = outstandingAmount.toLocaleString() + ' บาท';
+        }
+
+        function loadBorrowersTable() {
+            const tbody = document.getElementById('borrowersTableBody');
+            tbody.innerHTML = '';
+            
+            borrowersData.forEach(borrower => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4">${borrower.firstName} ${borrower.lastName}</td>
+                    <td class="px-6 py-4">${(borrower.totalLoan || 0).toLocaleString()} บาท</td>
+                    <td class="px-6 py-4">${formatDate(borrower.createdAt)}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded-full text-xs status-${borrower.status}">
+                            ${getStatusText(borrower.status)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <button onclick="viewBorrower('${borrower.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${borrower.status === 'pending' ? `
+                            <button onclick="approveBorrower('${borrower.id}')" class="text-green-600 hover:text-green-800 mr-2">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            <button onclick="rejectBorrower('${borrower.id}')" class="text-red-600 hover:text-red-800">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function loadSlipsTable() {
+            const tbody = document.getElementById('slipsTableBody');
+            tbody.innerHTML = '';
+            
+            slipsData.forEach(slip => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4">${formatDate(slip.createdAt)}</td>
+                    <td class="px-6 py-4">${(slip.amount || 0).toLocaleString()} บาท</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded-full text-xs status-${slip.status}">
+                            ${getStatusText(slip.status)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <button onclick="viewSlip('${slip.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${slip.status === 'pending' ? `
+                            <button onclick="approveSlip('${slip.id}')" class="text-green-600 hover:text-green-800 mr-2">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            <button onclick="rejectSlip('${slip.id}')" class="text-red-600 hover:text-red-800">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function loadDocumentsGrid() {
+            const grid = document.getElementById('documentsGrid');
+            grid.innerHTML = '';
+            
+            documentsData.forEach(doc => {
+                const card = document.createElement('div');
+                card.className = 'card bg-white p-4 rounded-lg shadow';
+                card.innerHTML = `
+                    <img src="${doc.url}" alt="Document" class="w-full h-40 object-cover rounded mb-3">
+                    <p class="text-sm text-gray-600">${formatDate(doc.createdAt)}</p>
+                    <div class="mt-2">
+                        <button onclick="viewDocument('${doc.url}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                            <i class="fas fa-eye"></i> ดู
+                        </button>
+                        <button onclick="downloadDocument('${doc.url}')" class="text-green-600 hover:text-green-800">
+                            <i class="fas fa-download"></i> ดาวน์โหลด
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function initCharts() {
+            // Loan Chart
+            const loanCtx = document.getElementById('loanChart').getContext('2d');
+            new Chart(loanCtx, {
+                type: 'line',
+                data: {
+                    labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.'],
+                    datasets: [{
+                        label: 'ยอดกู้ (บาท)',
+                        data: [50000, 75000, 100000, 125000, 150000, 175000, 200000],
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+
+            // Status Chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['อนุมัติ', 'รออนุมัติ', 'ปฏิเสธ'],
+                    datasets: [{
+                        data: [65, 25, 10],
+                        backgroundColor: [
+                            'rgb(34, 197, 94)',
+                            'rgb(251, 146, 60)',
+                            'rgb(239, 68, 68)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+
+        async function approveBorrower(id) {
+            if (confirm('คุณต้องการอนุมัติคำขอนี้หรือไม่?')) {
+                try {
+                    const response = await fetch('/api/admin/approve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            borrowerId: id,
+                            action: 'approve'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('อนุมัติสำเร็จ', 'success');
+                        loadAllData();
+                        loadBorrowersTable();
+                    } else {
+                        showAlert('เกิดข้อผิดพลาด', 'error');
+                    }
+                } catch (error) {
+                    showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                }
+            }
+        }
+
+        async function rejectBorrower(id) {
+            if (confirm('คุณต้องการปฏิเสธคำขอนี้หรือไม่?')) {
+                try {
+                    const response = await fetch('/api/admin/approve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            borrowerId: id,
+                            action: 'reject'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('ปฏิเสธสำเร็จ', 'success');
+                        loadAllData();
+                        loadBorrowersTable();
+                    } else {
+                        showAlert('เกิดข้อผิดพลาด', 'error');
+                    }
+                } catch (error) {
+                    showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                }
+            }
+        }
+
+        function viewBorrower(id) {
+            const borrower = borrowersData.find(b => b.id === id);
+            if (borrower) {
+                document.getElementById('borrowerDetails').innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">ชื่อ</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.firstName}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">นามสกุล</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.lastName}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">วันเกิด</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.birthDate}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">เลขบัตรประชาชน</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.idCard}</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">ที่อยู่</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.address}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">จำนวนเงินที่กู้</label>
+                            <p class="mt-1 text-sm text-gray-900">${(borrower.totalLoan || 0).toLocaleString()} บาท</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">รูปแบบการชำระ</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.frequency}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">อัตราดอกเบี้ย</label>
+                            <p class="mt-1 text-sm text-gray-900">${((borrower.interestRate || 0) * 100).toFixed(2)}%</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">สถานะ</label>
+                            <p class="mt-1 text-sm text-gray-900">${getStatusText(borrower.status)}</p>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('borrowerModal').classList.remove('hidden');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('borrowerModal').classList.add('hidden');
+        }
+
+        function refreshData() {
+            loadAllData();
+            if (currentSection === 'borrowers') loadBorrowersTable();
+            else if (currentSection === 'slips') loadSlipsTable();
+            else if (currentSection === 'documents') loadDocumentsGrid();
+            showAlert('ข้อมูลถูกรีเฟรชแล้ว', 'success');
+        }
+
+        function saveSettings() {
+            const settings = {
+                dailyInterest: document.getElementById('dailyInterest').value,
+                weeklyInterest: document.getElementById('weeklyInterest').value,
+                monthlyInterest: document.getElementById('monthlyInterest').value,
+                maxLoan: document.getElementById('maxLoan').value
+            };
+            
+            localStorage.setItem('baantkSettings', JSON.stringify(settings));
+            showAlert('บันทึกการตั้งค่าสำเร็จ', 'success');
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`;
+            alertDiv.textContent = message;
+            
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': 'รออนุมัติ',
+                'approved': 'อนุมัติ',
+                'rejected': 'ปฏิเสธ'
+            };
+            return statusMap[status] || status;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('th-TH');
+        }
+
+        function viewDocument(url) {
+            window.open(url, '_blank');
+        }
+
+        function downloadDocument(url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = '';
+            link.click();
+        }
+
+        // Click outside to close modal
+        document.getElementById('borrowerModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

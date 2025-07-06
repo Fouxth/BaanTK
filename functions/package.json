@@ -1,0 +1,53 @@
+{
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "lint": "eslint --ext .js .",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "deploy:all": "firebase deploy",
+    "logs": "firebase functions:log",
+    "test": "mocha test/**/*.js --timeout 10000",
+    "dev": "firebase emulators:start --import ./seed-data --export-on-exit",
+    "build": "npm install && npm run lint",
+    "functions:config:get": "firebase functions:config:get",
+    "emulators": "firebase emulators:start --import ./emulator-data --export-on-exit ./emulator-data"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "main": "simple.js",
+  "dependencies": {
+    "@google-cloud/storage": "^7.7.0",
+    "@line/bot-sdk": "^9.9.0",
+    "axios": "^1.6.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.1.5",
+    "firebase-admin": "^11.11.1",
+    "firebase-functions": "^6.3.2",
+    "helmet": "^8.0.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1",
+    "validator": "^13.11.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "chai": "^4.3.7",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-functions-test": "^3.1.0",
+    "mocha": "^10.2.0",
+    "sinon": "^15.2.0"
+  },
+  "private": true
+}
