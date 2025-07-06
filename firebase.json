@@ -20,6 +20,14 @@
     ],
     "rewrites": [
       {
+        "source": "/webhook",
+        "function": "webhook"
+      },
+      {
+        "source": "/webhook/**",
+        "function": "webhook"
+      },
+      {
         "source": "/api/**",
         "function": "webhook"
       },
@@ -29,7 +37,7 @@
       },
       {
         "source": "**",
-        "destination": "/liff-register.html"
+        "destination": "/liff-register-mobile.html"
       }
     ],
     "headers": [

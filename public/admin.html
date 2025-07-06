@@ -3,671 +3,1373 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏦 BaanTK - Admin Dashboard</title>
+    <title>Admin Dashboard - BaanTK</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .dashboard-card {
-            transition: all 0.3s ease;
+        body { 
+            height: 100vh; 
+            overflow: hidden; 
         }
-        .dashboard-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        .card { transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .status-pending { background: #FEF3C7; color: #D97706; }
+        .status-approved { background: #D1FAE5; color: #059669; }
+        .status-rejected { background: #FEE2E2; color: #DC2626; }
+        .sidebar { min-height: 100vh; }
+        .main-content { 
+            margin-left: 250px; 
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
-        /* Fix height issues */
-        html, body {
-            height: 100%;
-            overflow-x: hidden;
+        .container-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(100vh - 120px);
         }
-        #main-content {
-            min-height: calc(100vh - 64px); /* 64px = nav height */
-        }
-        /* Fix table container */
-        .table-container {
+        .borrowers-table {
             max-height: 500px;
             overflow-y: auto;
         }
+        @media (max-width: 768px) {
+            .main-content { margin-left: 0; }
+            .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+            .sidebar.active { transform: translateX(0); }
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <!-- Navigation -->
-    <nav class="bg-blue-600 text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <h1 class="text-xl font-bold">🏦 BaanTK Admin Dashboard</h1>
+<body class="bg-gray-50">
+    <!-- Admin Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div class="text-center mb-6">
+                <div class="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fas fa-lock text-yellow-600 text-2xl"></i>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <span id="admin-name">Admin</span>
-                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded text-sm">
-                        ออกจากระบบ
-                    </button>
-                </div>
+                <h2 class="text-2xl font-bold text-gray-900">🔐 Admin Login</h2>
+                <p class="text-gray-600 mt-2">กรุณาใส่ Admin Token เพื่อเข้าสู่ระบบ</p>
             </div>
-        </div>
-    </nav>
-
-    <!-- Login Modal -->
-    <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-8 w-full max-w-md">
-            <h2 class="text-2xl font-bold text-center mb-6">🔐 Admin Login</h2>
-            <form id="login-form">
+            
+            <form id="loginForm" onsubmit="handleLogin(event)">
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Admin Token</label>
-                    <input type="password" id="admin-token" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                        placeholder="Enter admin token">
-                </div>
-                <button type="submit" 
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                    เข้าสู่ระบบ
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <div id="main-content" class="hidden">
-        <!-- Statistics Cards -->
-        <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="dashboard-card bg-white rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">ผู้กู้ทั้งหมด</p>
-                            <p class="text-2xl font-bold text-gray-900" id="total-borrowers">-</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="dashboard-card bg-white rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
-                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M10 2L3 7v11a2 2 0 002 2h10a2 2 0 002-2V7l-7-5z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">รอการอนุมัติ</p>
-                            <p class="text-2xl font-bold text-gray-900" id="pending-applications">-</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="dashboard-card bg-white rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-green-100 text-green-600">
-                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">อนุมัติแล้ว</p>
-                            <p class="text-2xl font-bold text-gray-900" id="approved-loans">-</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="dashboard-card bg-white rounded-lg shadow p-6">
-                    <div class="flex items-center">
-                        <div class="p-3 rounded-full bg-red-100 text-red-600">
-                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-600">ปฏิเสธ</p>
-                            <p class="text-2xl font-bold text-gray-900" id="rejected-applications">-</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Financial Overview -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-lg font-bold text-gray-900 mb-4">💰 ภาพรวมการเงิน</h3>
-                    <div class="space-y-4">
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">ยอดปล่อยกู้รวม:</span>
-                            <span class="font-bold text-blue-600" id="total-loan-amount">-</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">ได้รับชำระแล้ว:</span>
-                            <span class="font-bold text-green-600" id="total-paid-amount">-</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">คงค้าง:</span>
-                            <span class="font-bold text-red-600" id="outstanding-amount">-</span>
-                        </div>
-                        <div class="flex justify-between border-t pt-2">
-                            <span class="text-gray-600">อัตราการชำระ:</span>
-                            <span class="font-bold text-purple-600" id="collection-rate">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-lg font-bold text-gray-900 mb-4">📊 สถิติการสมัคร</h3>
-                    <canvas id="applications-chart" width="400" height="200"></canvas>
-                </div>
-            </div>
-
-            <!-- Borrowers Table -->
-            <div class="bg-white rounded-lg shadow">
-                <div class="p-6 border-b border-gray-200">
-                    <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-bold text-gray-900">📋 รายการผู้กู้เงิน</h3>
-                        <div class="flex space-x-2">
-                            <select id="status-filter" class="border border-gray-300 rounded px-3 py-1">
-                                <option value="">ทุกสถานะ</option>
-                                <option value="pending">รอการอนุมัติ</option>
-                                <option value="approved">อนุมัติแล้ว</option>
-                                <option value="rejected">ปฏิเสธ</option>
-                            </select>
-                            <button onclick="refreshBorrowers()" 
-                                class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded text-sm">
-                                รีเฟรช
-                            </button>
-                        </div>
-                    </div>
+                    <label for="adminToken" class="block text-sm font-medium text-gray-700 mb-2">Admin Token</label>
+                    <input 
+                        type="password" 
+                        id="adminToken" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="••••••••••••"
+                        required
+                    >
                 </div>
                 
-                <div class="table-container">
-                    <table class="min-w-full divide-y divide-gray-200">
+                <button 
+                    type="submit" 
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition duration-200"
+                >
+                    <i class="fas fa-sign-in-alt mr-2"></i>เข้าสู่ระบบ
+                </button>
+            </form>
+            
+            <div id="loginError" class="mt-4 text-red-600 text-sm text-center hidden"></div>
+            
+            <div class="mt-6 text-center">
+                <p class="text-xs text-gray-500">
+                    💡 ใช้ token: <code class="bg-gray-100 px-2 py-1 rounded">********</code>
+                </p>
+            </div>
+        </div>
+    </div>
+    <!-- Sidebar -->
+    <div id="sidebar" class="sidebar fixed left-0 top-0 w-64 bg-white shadow-lg z-50">
+        <div class="p-6 border-b">
+            <h1 class="text-2xl font-bold text-green-600">
+                <i class="fas fa-building mr-2"></i>BaanTK Admin
+            </h1>
+        </div>
+        <nav class="mt-6">
+            <a href="#dashboard" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('dashboard')">
+                <i class="fas fa-tachometer-alt mr-3"></i>แดชบอร์ด
+            </a>
+            <a href="#borrowers" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('borrowers')">
+                <i class="fas fa-users mr-3"></i>ผู้กู้เงิน
+            </a>
+            <a href="#slips" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('slips')">
+                <i class="fas fa-receipt mr-3"></i>สลิปชำระเงิน
+            </a>
+            <a href="#documents" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('documents')">
+                <i class="fas fa-file-image mr-3"></i>เอกสาร
+            </a>
+            <a href="#reports" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('reports')">
+                <i class="fas fa-chart-bar mr-3"></i>รายงาน
+            </a>
+            <a href="#settings" class="nav-item flex items-center px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600" onclick="showSection('settings')">
+                <i class="fas fa-cog mr-3"></i>ตั้งค่า
+            </a>
+        </nav>
+    </div>
+
+    <!-- Mobile Menu Button -->
+    <button id="menuBtn" class="md:hidden fixed top-4 left-4 z-50 bg-green-600 text-white p-2 rounded-md">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 id="pageTitle" class="text-2xl font-semibold text-gray-800">แดชบอร์ด</h2>
+                    <p class="text-gray-600">ระบบจัดการกู้เงิน BaanTK</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md" onclick="refreshData()">
+                        <i class="fas fa-sync-alt mr-2"></i>รีเฟรช
+                    </button>
+                    <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md" onclick="logout()">
+                        <i class="fas fa-sign-out-alt mr-2"></i>ออกจากระบบ
+                    </button>
+                    <div class="text-sm text-gray-500">
+                        <i class="fas fa-clock mr-1"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="p-6 container-wrapper">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">ผู้กู้ทั้งหมด</p>
+                            <p class="text-2xl font-bold text-gray-800" id="totalBorrowers">-</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-users text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รออนุมัติ</p>
+                            <p class="text-2xl font-bold text-orange-600" id="pendingBorrowers">-</p>
+                        </div>
+                        <div class="bg-orange-100 p-3 rounded-full">
+                            <i class="fas fa-clock text-orange-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">ยอดกู้รวม</p>
+                            <p class="text-2xl font-bold text-green-600" id="totalLoan">-</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <i class="fas fa-money-bill-wave text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">ยอดค้างชำระ</p>
+                            <p class="text-2xl font-bold text-red-600" id="outstandingAmount">-</p>
+                        </div>
+                        <div class="bg-red-100 p-3 rounded-full">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Cards -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Loan Status Analytics -->
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-chart-pie mr-2 text-blue-600"></i>สถิติสถานะคำขอ
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-yellow-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-600">รอพิจารณา</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="pendingCount">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-yellow-500 h-2 rounded-full" id="pendingBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-600">อนุมัติ</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="approvedCount">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-green-500 h-2 rounded-full" id="approvedBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-600">ปฏิเสธ</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="rejectedCount">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-red-500 h-2 rounded-full" id="rejectedBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loan Amount Analytics -->
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-coins mr-2 text-green-600"></i>สถิติจำนวนเงินกู้
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">≤ 5,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range1Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-400 h-2 rounded-full" id="range1Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">5,001 - 15,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range2Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-500 h-2 rounded-full" id="range2Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">15,001 - 50,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range3Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-600 h-2 rounded-full" id="range3Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">> 50,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range4Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-800 h-2 rounded-full" id="range4Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="card bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-semibold mb-4">
+                    <i class="fas fa-clock mr-2 text-purple-600"></i>กิจกรรมล่าสุด
+                </h3>
+                <div class="space-y-3" id="activityFeed">
+                    <!-- Dynamic content will be loaded here -->
+                    <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <div class="w-2 h-2 bg-gray-400 rounded-full mr-3"></div>
+                        <span class="text-sm text-gray-600">ไม่มีกิจกรรมล่าสุด</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Borrowers Section -->
+        <section id="borrowers" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">รายชื่อผู้กู้เงิน</h3>
+                </div>
+                <div class="overflow-x-auto borrowers-table">
+                    <table class="min-w-full table-auto">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-นามสกุล</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนเงิน</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">คะแนนเครดิต</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่สมัคร</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">บัตรประชาชน</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การจัดการ</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-นามสกุล</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนเงิน</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่สมัคร</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody id="borrowers-table" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="6" class="px-6 py-4 text-center text-gray-500">กำลังโหลดข้อมูล...</td>
-                            </tr>
+                        <tbody id="borrowersTableBody" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slips Section -->
+        <section id="slips" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">สลิปชำระเงิน</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนเงิน</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="slipsTableBody" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Documents Section -->
+        <section id="documents" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">เอกสารที่อัปโหลด</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6" id="documentsGrid">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Section -->
+        <section id="reports" class="p-6 hidden container-wrapper">
+            <!-- Report Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รายงานวันนี้</p>
+                            <p class="text-2xl font-bold text-blue-600" id="todayReport">0</p>
+                            <p class="text-xs text-gray-500">คำขอใหม่</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-calendar-day text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รายงานสัปดาห์นี้</p>
+                            <p class="text-2xl font-bold text-green-600" id="weekReport">0</p>
+                            <p class="text-xs text-gray-500">คำขอทั้งหมด</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <i class="fas fa-calendar-week text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รายงานเดือนนี้</p>
+                            <p class="text-2xl font-bold text-purple-600" id="monthReport">0</p>
+                            <p class="text-xs text-gray-500">ยอดรวม</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-full">
+                            <i class="fas fa-calendar-month text-purple-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-percentage mr-2 text-orange-600"></i>อัตราการอนุมัติ
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-orange-600" id="approvalRate">0%</div>
+                            <p class="text-sm text-gray-600">อัตราการอนุมัติโดยเฉลี่ย</p>
+                        </div>
+                        <div class="bg-gray-200 rounded-full h-4">
+                            <div class="bg-orange-600 h-4 rounded-full transition-all duration-300" id="approvalRateBar" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>0%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-money-bill-wave mr-2 text-emerald-600"></i>ยอดเงินกู้เฉลี่ย
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-emerald-600" id="avgLoanAmount">0</div>
+                            <p class="text-sm text-gray-600">บาท/คำขอ</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <div class="text-lg font-semibold text-blue-600" id="minLoan">0</div>
+                                <div class="text-xs text-gray-500">ต่ำสุด</div>
+                            </div>
+                            <div>
+                                <div class="text-lg font-semibold text-green-600" id="maxLoan">0</div>
+                                <div class="text-xs text-gray-500">สูงสุด</div>
+                            </div>
+                            <div>
+                                <div class="text-lg font-semibold text-purple-600" id="totalLoans">0</div>
+                                <div class="text-xs text-gray-500">ทั้งหมด</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed & Summary -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Recent Activity -->
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-clock mr-2 text-blue-600"></i>กิจกรรมล่าสุด
+                    </h3>
+                    <div id="activityFeed" class="space-y-3 max-h-64 overflow-y-auto">
+                        <!-- Activity items will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Quick Summary -->
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-chart-line mr-2 text-green-600"></i>สรุปข้อมูล
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">คำขอที่รออนุมัติ</span>
+                            <span class="text-lg font-bold text-orange-600" id="summaryPending">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">อนุมัติแล้ววันนี้</span>
+                            <span class="text-lg font-bold text-green-600" id="summaryApprovedToday">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">ยอดเงินกู้รวมวันนี้</span>
+                            <span class="text-lg font-bold text-blue-600" id="summaryTotalToday">0 บาท</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">เฉลี่ยต่อคำขอ</span>
+                            <span class="text-lg font-bold text-purple-600" id="summaryAvgAmount">0 บาท</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Options -->
+            <div class="mt-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-download mr-2 text-indigo-600"></i>ส่งออกรายงาน
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('daily')">
+                            <div class="text-center">
+                                <i class="fas fa-file-excel text-green-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">รายวัน</div>
+                            </div>
+                        </button>
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('weekly')">
+                            <div class="text-center">
+                                <i class="fas fa-file-csv text-blue-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">รายสัปดาห์</div>
+                            </div>
+                        </button>
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('monthly')">
+                            <div class="text-center">
+                                <i class="fas fa-file-pdf text-red-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">รายเดือน</div>
+                            </div>
+                        </button>
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('custom')">
+                            <div class="text-center">
+                                <i class="fas fa-file-alt text-purple-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">กำหนดเอง</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="p-6 hidden container-wrapper">
+            <div class="card bg-white rounded-lg shadow">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">ตั้งค่าระบบ</h3>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อัตราดอกเบี้ยรายวัน (%)</label>
+                            <input type="number" id="dailyInterest" class="w-full p-3 border rounded-md" value="20">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อัตราดอกเบี้ยรายอาทิตย์ (%)</label>
+                            <input type="number" id="weeklyInterest" class="w-full p-3 border rounded-md" value="15">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อัตราดอกเบี้ยรายเดือน (%)</label>
+                            <input type="number" id="monthlyInterest" class="w-full p-3 border rounded-md" value="10">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">วงเงินกู้สูงสุด (บาท)</label>
+                            <input type="number" id="maxLoan" class="w-full p-3 border rounded-md" value="50000">
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-md" onclick="saveSettings()">
+                            <i class="fas fa-save mr-2"></i>บันทึกการตั้งค่า
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal for Borrower Details -->
+    <div id="borrowerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+                <div class="p-6 border-b">
+                    <h3 class="text-lg font-semibold">รายละเอียดผู้กู้เงิน</h3>
+                    <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="borrowerDetails" class="p-6">
+                    <!-- Dynamic content -->
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let authToken = '';
+        // Global variables
         let borrowersData = [];
+        let slipsData = [];
+        let documentsData = [];
+        let currentSection = 'dashboard';
+        let adminToken = '';
 
-        // Initialize dashboard
+        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            checkAuthStatus();
-        });
-
-        function checkAuthStatus() {
-            authToken = localStorage.getItem('adminToken');
-            if (authToken) {
-                showDashboard();
-                loadDashboardData();
+            // Check for existing admin token
+            const savedToken = localStorage.getItem('adminToken');
+            if (savedToken) {
+                adminToken = savedToken;
+                hideLoginModal();
             } else {
                 showLoginModal();
             }
-        }
-
-        function showLoginModal() {
-            document.getElementById('login-modal').classList.remove('hidden');
-            document.getElementById('main-content').classList.add('hidden');
-        }
-
-        function showDashboard() {
-            document.getElementById('login-modal').classList.add('hidden');
-            document.getElementById('main-content').classList.remove('hidden');
-        }
-
-        // Login form handler
-        document.getElementById('login-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const token = document.getElementById('admin-token').value;
             
-            try {
-                const response = await fetch('/api/admin/dashboard-stats', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    authToken = token;
-                    localStorage.setItem('adminToken', token);
-                    showDashboard();
-                    loadDashboardData();
-                } else {
-                    alert('Invalid admin token');
-                }
-            } catch (error) {
-                alert('Login failed: ' + error.message);
-            }
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // Mobile menu toggle
+            document.getElementById('menuBtn').addEventListener('click', function() {
+                document.getElementById('sidebar').classList.toggle('active');
+            });
         });
 
-        function logout() {
-            localStorage.removeItem('adminToken');
-            authToken = '';
-            showLoginModal();
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
         }
 
-        async function loadDashboardData() {
-            try {
-                // Add loading state
-                showLoadingState();
-                
-                await Promise.all([
-                    loadDashboardStats(),
-                    loadBorrowers()
-                ]);
-                
-                // Hide loading state
-                hideLoadingState();
-            } catch (error) {
-                console.error('Error loading dashboard data:', error);
-                showErrorState(error.message);
-            }
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+            // Load data after successful login
+            loadAllData();
+            initAnalytics();
         }
 
-        function showLoadingState() {
-            const elements = ['total-borrowers', 'pending-applications', 'approved-loans', 'rejected-applications'];
-            elements.forEach(id => {
-                const element = document.getElementById(id);
-                if (element) element.textContent = 'กำลังโหลด...';
-            });
-        }
-
-        function hideLoadingState() {
-            // Loading complete - no action needed
-        }
-
-        function showErrorState(message) {
-            const elements = ['total-borrowers', 'pending-applications', 'approved-loans', 'rejected-applications'];
-            elements.forEach(id => {
-                const element = document.getElementById(id);
-                if (element) element.textContent = 'Error';
-            });
+        async function handleLogin(event) {
+            event.preventDefault();
             
-            const tableBody = document.getElementById('borrowers-table');
-            if (tableBody) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="px-6 py-4 text-center text-red-500">
-                            ❌ เกิดข้อผิดพลาด: ${message}
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-
-        async function loadDashboardStats() {
+            const token = document.getElementById('adminToken').value;
+            const errorDiv = document.getElementById('loginError');
+            
             try {
+                // Test the token by making an API call
                 const response = await fetch('/api/admin/dashboard-stats', {
+                    method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${authToken}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
-                
-                if (!response.ok) throw new Error('Failed to load stats');
-                
-                const result = await response.json();
-                const stats = result.data;
-                
-                // Update statistics cards safely
-                const statsElements = {
-                    'total-borrowers': stats.totalBorrowers || 0,
-                    'pending-applications': stats.pendingApplications || 0,
-                    'approved-loans': stats.approvedLoans || 0,
-                    'rejected-applications': stats.rejectedApplications || 0
-                };
-                
-                Object.entries(statsElements).forEach(([id, value]) => {
-                    const element = document.getElementById(id);
-                    if (element) element.textContent = value;
-                });
-                
-                // Update financial overview safely
-                const financialElements = {
-                    'total-loan-amount': stats.totalLoanAmount || 0,
-                    'total-paid-amount': stats.totalPaidAmount || 0
-                };
-                
-                Object.entries(financialElements).forEach(([id, value]) => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.textContent = new Intl.NumberFormat('th-TH', { 
-                            style: 'currency', 
-                            currency: 'THB' 
-                        }).format(value);
-                    }
-                });
-                document.getElementById('outstanding-amount').textContent = 
-                    new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(stats.outstandingAmount);
-                document.getElementById('collection-rate').textContent = stats.collectionRate + '%';
-                
-                // Update chart
-                updateApplicationsChart(stats);
-                
+
+                if (response.ok) {
+                    adminToken = token;
+                    localStorage.setItem('adminToken', token);
+                    errorDiv.classList.add('hidden');
+                    hideLoginModal();
+                    showAlert('เข้าสู่ระบบสำเร็จ!', 'success');
+                } else {
+                    const errorData = await response.json();
+                    errorDiv.textContent = errorData.message || 'Admin Token ไม่ถูกต้อง';
+                    errorDiv.classList.remove('hidden');
+                }
             } catch (error) {
-                console.error('Error loading dashboard stats:', error);
+                console.error('Login error:', error);
+                errorDiv.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
+                errorDiv.classList.remove('hidden');
             }
         }
 
-        async function loadBorrowers() {
-            try {
-                const status = document.getElementById('status-filter').value;
-                const url = status ? `/api/admin/borrowers?status=${status}` : '/api/admin/borrowers';
-                
-                const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-                
-                if (!response.ok) throw new Error('Failed to load borrowers');
-                
-                const result = await response.json();
-                borrowersData = result.data;
-                
-                updateBorrowersTable();
-                
-            } catch (error) {
-                console.error('Error loading borrowers:', error);
-                document.getElementById('borrowers-table').innerHTML = 
-                    '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
-            }
+        function logout() {
+            adminToken = '';
+            localStorage.removeItem('adminToken');
+            showLoginModal();
+            showAlert('ออกจากระบบเรียบร้อย', 'info');
         }
 
-        function updateBorrowersTable() {
-            const tableBody = document.getElementById('borrowers-table');
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('th-TH');
+        }
+
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('section').forEach(section => {
+                section.classList.add('hidden');
+            });
             
-            if (!borrowersData || borrowersData.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">ไม่มีข้อมูล</td></tr>';
+            // Show selected section
+            document.getElementById(sectionName).classList.remove('hidden');
+            
+            // Update active nav item
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('bg-green-50', 'text-green-600');
+            });
+            event.target.classList.add('bg-green-50', 'text-green-600');
+            
+            // Update page title
+            const titles = {
+                dashboard: 'แดชบอร์ด',
+                borrowers: 'ผู้กู้เงิน',
+                slips: 'สลิปชำระเงิน',
+                documents: 'เอกสาร',
+                reports: 'รายงาน',
+                settings: 'ตั้งค่า'
+            };
+            document.getElementById('pageTitle').textContent = titles[sectionName];
+            
+            currentSection = sectionName;
+            
+            // Load section-specific data
+            if (sectionName === 'borrowers') loadBorrowersTable();
+            else if (sectionName === 'slips') loadSlipsTable();
+            else if (sectionName === 'documents') loadDocumentsGrid();
+            else if (sectionName === 'reports') updateReportsData();
+            
+            // Close mobile menu
+            document.getElementById('sidebar').classList.remove('active');
+        }
+
+        async function loadAllData() {
+            if (!adminToken) {
+                console.warn('No admin token available');
                 return;
             }
             
             try {
-                tableBody.innerHTML = borrowersData.map(borrower => `
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">${borrower.firstName || ''} ${borrower.lastName || ''}</div>
-                            <div class="text-xs text-gray-500">ID: ${borrower.idCard || 'N/A'}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${borrower.requestedAmount ? new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(borrower.requestedAmount) : 'N/A'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm font-medium ${getScoreColor(borrower.creditScore)}">${borrower.creditScore || 'N/A'}</span>
-                            <div class="text-xs text-gray-500">${getRiskLevel(borrower.creditScore)}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(borrower.status)}">
-                                ${getStatusText(borrower.status)}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            ${borrower.createdAt ? new Date(borrower.createdAt).toLocaleDateString('th-TH') : 'N/A'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center">
-                            ${borrower.idCardImage ? `
-                                <button onclick="viewIdCard('${borrower.id}')" 
-                                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs">
-                                    ดูบัตร
-                                </button>
-                            ` : `
-                                <span class="text-gray-400 text-xs">ไม่มีรูป</span>
-                            `}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            ${borrower.status === 'pending' ? `
-                                <button onclick="approveLoan('${borrower.id}')" 
-                                    class="text-green-600 hover:text-green-900 mr-3">อนุมัติ</button>
-                                <button onclick="rejectLoan('${borrower.id}')" 
-                                    class="text-red-600 hover:text-red-900">ปฏิเสธ</button>
-                            ` : `
-                                <button onclick="viewDetails('${borrower.id}')" 
-                                    class="text-blue-600 hover:text-blue-900">ดูรายละเอียด</button>
-                            `}
-                        </td>
-                    </tr>
-                `).join('');
+                const headers = {
+                    'Authorization': `Bearer ${adminToken}`,
+                    'Content-Type': 'application/json'
+                };
+
+                // Load borrowers
+                const borrowersResponse = await fetch('/api/admin/borrowers', { headers });
+                if (!borrowersResponse.ok) throw new Error('Failed to load borrowers');
+                borrowersData = await borrowersResponse.json();
+                
+                // Load slips  
+                const slipsResponse = await fetch('/api/admin/slips', { headers });
+                if (slipsResponse.ok) {
+                    slipsData = await slipsResponse.json();
+                } else {
+                    slipsData = []; // Fallback if slips endpoint doesn't exist
+                }
+                
+                // Load documents
+                const documentsResponse = await fetch('/api/admin/images', { headers });
+                if (documentsResponse.ok) {
+                    documentsData = await documentsResponse.json();
+                } else {
+                    documentsData = []; // Fallback if images endpoint doesn't exist
+                }
+                
+                updateDashboardStats();
+                updateReportsData();
+                
             } catch (error) {
-                console.error('Error updating table:', error);
-                tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">เกิดข้อผิดพลาดในการแสดงข้อมูล</td></tr>';
+                console.error('Error loading data:', error);
+                if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                    logout(); // Auto logout on auth error
+                } else {
+                    showAlert('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message, 'error');
+                }
             }
         }
 
-        function updateApplicationsChart(stats) {
-            const canvas = document.getElementById('applications-chart');
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            
-            // Clear any existing chart
-            if (window.applicationsChart && typeof window.applicationsChart.destroy === 'function') {
-                window.applicationsChart.destroy();
-            }
-            
-            window.applicationsChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['รอการอนุมัติ', 'อนุมัติแล้ว', 'ปฏิเสธ'],
-                    datasets: [{
-                        data: [
-                            stats.pendingApplications || 0, 
-                            stats.approvedLoans || 0, 
-                            stats.rejectedApplications || 0
-                        ],
-                        backgroundColor: ['#FbbF24', '#10B981', '#EF4444'],
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                padding: 20,
-                                font: {
-                                    size: 12
-                                }
-                            }
-                        }
-                    }
+        function updateDashboardStats() {
+            const totalBorrowers = borrowersData.length;
+            const pendingBorrowers = borrowersData.filter(b => b.status === 'pending').length;
+            const totalLoan = borrowersData.reduce((sum, b) => sum + (b.totalLoan || 0), 0);
+            const outstandingAmount = borrowersData.reduce((sum, b) => {
+                if (b.status === 'approved') {
+                    return sum + (b.totalLoan || 0) + ((b.totalLoan || 0) * (b.interestRate || 0));
                 }
+                return sum;
+            }, 0);
+
+            document.getElementById('totalBorrowers').textContent = totalBorrowers;
+            document.getElementById('pendingBorrowers').textContent = pendingBorrowers;
+            document.getElementById('totalLoan').textContent = totalLoan.toLocaleString() + ' บาท';
+            document.getElementById('outstandingAmount').textContent = outstandingAmount.toLocaleString() + ' บาท';
+            
+            // Update analytics
+            updateAnalytics();
+        }
+
+        function updateAnalytics() {
+            // Count by status
+            const pendingCount = borrowersData.filter(b => b.status === 'pending').length;
+            const approvedCount = borrowersData.filter(b => b.status === 'approved').length;
+            const rejectedCount = borrowersData.filter(b => b.status === 'rejected').length;
+            const total = borrowersData.length || 1; // Prevent division by zero
+
+            // Calculate percentages
+            const pendingPercent = Math.round((pendingCount / total) * 100);
+            const approvedPercent = Math.round((approvedCount / total) * 100);
+            const rejectedPercent = Math.round((rejectedCount / total) * 100);
+
+            // Update status analytics
+            const statusElements = {
+                pendingCount: pendingCount,
+                approvedCount: approvedCount,
+                rejectedCount: rejectedCount
+            };
+
+            Object.entries(statusElements).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = value;
+            });
+
+            // Update progress bars with animation
+            setTimeout(() => {
+                const progressBars = {
+                    pendingBar: pendingPercent,
+                    approvedBar: approvedPercent,
+                    rejectedBar: rejectedPercent
+                };
+
+                Object.entries(progressBars).forEach(([id, percent]) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.style.width = `${percent}%`;
+                        element.style.transition = 'width 0.8s ease-in-out';
+                    }
+                });
+            }, 100);
+        }
+
+        function loadBorrowersTable() {
+            const tbody = document.getElementById('borrowersTableBody');
+            tbody.innerHTML = '';
+            
+            borrowersData.forEach(borrower => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                
+                // Format date
+                const createdAt = borrower.createdAt ? 
+                    new Date(borrower.createdAt.seconds * 1000).toLocaleDateString('th-TH') : 
+                    'N/A';
+
+                // Calculate total amount
+                const totalAmount = borrower.totalLoan ? 
+                    borrower.totalLoan + (borrower.totalLoan * (borrower.interestRate || 0)) : 
+                    borrower.amount || 0;
+
+                // Status badge
+                const statusClass = getStatusClass(borrower.status);
+                const statusText = getStatusText(borrower.status);
+
+                // Images indicators
+                const imageIndicators = [];
+                if (borrower.idCardImage || borrower.hasIdCardImage) {
+                    imageIndicators.push('<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">📋 ID</span>');
+                }
+                if (borrower.selfieImage || borrower.hasSelfieImage) {
+                    imageIndicators.push('<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">📸 Self</span>');
+                }
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-10 w-10">
+                                <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <span class="text-sm font-medium text-gray-600">
+                                        ${borrower.firstName ? borrower.firstName.charAt(0) : 'N'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900">
+                                    ${borrower.firstName || 'N/A'} ${borrower.lastName || ''}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    ${borrower.idCard ? `${borrower.idCard.substring(0, 4)}-xxxx-xxxx-x${borrower.idCard.slice(-1)}` : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${formatMoney(totalAmount)}</div>
+                        <div class="text-sm text-gray-500">${borrower.frequency || 'N/A'}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${createdAt}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex flex-wrap gap-1">
+                            ${imageIndicators.join('')}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex space-x-2">
+                            ${borrower.idCardImage || borrower.selfieImage ? 
+                                `<button onclick="viewBorrowerImages('${borrower.id}')" class="text-blue-600 hover:text-blue-900" title="ดูรูปภาพ">
+                                    <i class="fas fa-images"></i>
+                                </button>` : ''
+                            }
+                            ${borrower.status === 'pending' ? 
+                                `<button onclick="approveBorrower('${borrower.id}')" class="text-green-600 hover:text-green-900" title="อนุมัติ">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="rejectBorrower('${borrower.id}')" class="text-red-600 hover:text-red-900" title="ปฏิเสธ">
+                                    <i class="fas fa-times"></i>
+                                </button>` : 
+                                borrower.status === 'approved' && borrower.contractId ? 
+                                `<button onclick="viewContract('${borrower.contractId}')" class="text-purple-600 hover:text-purple-900" title="ดูสัญญา">
+                                    <i class="fas fa-file-contract"></i>
+                                </button>` : ''
+                            }
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
             });
         }
 
-        async function approveLoan(borrowerId) {
-            if (!confirm('ยืนยันการอนุมัติเงินกู้นี้?')) return;
-            
-            try {
-                const response = await fetch('/api/admin/approve', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        borrowerId: borrowerId,
-                        action: 'approve'
-                    })
-                });
-                
-                if (response.ok) {
-                    alert('อนุมัติเงินกู้สำเร็จ');
-                    loadDashboardData();
-                } else {
-                    alert('เกิดข้อผิดพลาดในการอนุมัติ');
-                }
-            } catch (error) {
-                alert('เกิดข้อผิดพลาด: ' + error.message);
-            }
-        }
-
-        async function rejectLoan(borrowerId) {
-            const reason = prompt('ระบุเหตุผลในการปฏิเสธ:');
-            if (!reason) return;
-            
-            try {
-                const response = await fetch('/api/admin/approve', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        borrowerId: borrowerId,
-                        action: 'reject',
-                        notes: reason
-                    })
-                });
-                
-                if (response.ok) {
-                    alert('ปฏิเสธเงินกู้สำเร็จ');
-                    loadDashboardData();
-                } else {
-                    alert('เกิดข้อผิดพลาดในการปฏิเสธ');
-                }
-            } catch (error) {
-                alert('เกิดข้อผิดพลาด: ' + error.message);
-            }
-        }
-
-        function refreshBorrowers() {
-            loadBorrowers();
-        }
-
-        // Status filter change handler
-        document.getElementById('status-filter').addEventListener('change', function() {
-            loadBorrowers();
-        });
-
-        // Helper functions
-        function getStatusColor(status) {
-            switch (status) {
-                case 'pending': return 'bg-yellow-100 text-yellow-800';
-                case 'approved': return 'bg-green-100 text-green-800';
-                case 'rejected': return 'bg-red-100 text-red-800';
-                default: return 'bg-gray-100 text-gray-800';
-            }
-        }
-
-        function getStatusText(status) {
-            switch (status) {
-                case 'pending': return 'รอการอนุมัติ';
-                case 'approved': return 'อนุมัติแล้ว';
-                case 'rejected': return 'ปฏิเสธ';
-                default: return status;
-            }
-        }
-
-        function getScoreColor(score) {
-            if (!score || score === 'N/A') return 'text-gray-600';
-            if (score >= 700) return 'text-green-600';
-            if (score >= 600) return 'text-yellow-600';
-            return 'text-red-600';
-        }
-
-        function getRiskLevel(score) {
-            if (!score || score === 'N/A') return 'ไม่ระบุ';
-            if (score >= 700) return 'ความเสี่ยงต่ำ';
-            if (score >= 600) return 'ความเสี่ยงปานกลาง';
-            return 'ความเสี่ยงสูง';
-        }
-
-        function viewDetails(borrowerId) {
+        // Function to view borrower images
+        function viewBorrowerImages(borrowerId) {
             const borrower = borrowersData.find(b => b.id === borrowerId);
+            if (!borrower) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">รูปภาพของ ${borrower.firstName} ${borrower.lastName}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${borrower.idCardImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📋 บัตรประชาชน</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.idCardImage}" alt="ID Card" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.idCardImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.idCardImageSize ? formatFileSize(borrower.idCardImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปบัตรประชาชน</div>'}
+                        
+                        ${borrower.selfieImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📸 รูปถ่ายผู้สมัคร</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.selfieImage}" alt="Selfie" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.selfieImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.selfieImageSize ? formatFileSize(borrower.selfieImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปถ่ายผู้สมัคร</div>'}
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Enhanced borrower display with image support
+        function displayBorrowers(borrowers) {
+            const tbody = document.getElementById('borrowersTableBody');
+            tbody.innerHTML = '';
+
+            borrowers.forEach(borrower => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                
+                // Format date
+                const createdAt = borrower.createdAt ? 
+                    new Date(borrower.createdAt.seconds * 1000).toLocaleDateString('th-TH') : 
+                    'N/A';
+
+                // Calculate total amount
+                const totalAmount = borrower.totalLoan ? 
+                    borrower.totalLoan + (borrower.totalLoan * (borrower.interestRate || 0)) : 
+                    borrower.amount || 0;
+
+                // Status badge
+                const statusClass = getStatusClass(borrower.status);
+                const statusText = getStatusText(borrower.status);
+
+                // Images indicators
+                const imageIndicators = [];
+                if (borrower.idCardImage || borrower.hasIdCardImage) {
+                    imageIndicators.push('<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">📋 ID</span>');
+                }
+                if (borrower.selfieImage || borrower.hasSelfieImage) {
+                    imageIndicators.push('<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">📸 Self</span>');
+                }
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-10 w-10">
+                                <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <span class="text-sm font-medium text-gray-600">
+                                        ${borrower.firstName ? borrower.firstName.charAt(0) : 'N'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900">
+                                    ${borrower.firstName || 'N/A'} ${borrower.lastName || ''}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    ${borrower.idCard ? `${borrower.idCard.substring(0, 4)}-xxxx-xxxx-x${borrower.idCard.slice(-1)}` : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${formatMoney(totalAmount)}</div>
+                        <div class="text-sm text-gray-500">${borrower.frequency || 'N/A'}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${createdAt}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex flex-wrap gap-1">
+                            ${imageIndicators.join('')}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex space-x-2">
+                            ${borrower.idCardImage || borrower.selfieImage ? 
+                                `<button onclick="viewBorrowerImages('${borrower.id}')" class="text-blue-600 hover:text-blue-900" title="ดูรูปภาพ">
+                                    <i class="fas fa-images"></i>
+                                </button>` : ''
+                            }
+                            ${borrower.status === 'pending' ? 
+                                `<button onclick="approveBorrower('${borrower.id}')" class="text-green-600 hover:text-green-900" title="อนุมัติ">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="rejectBorrower('${borrower.id}')" class="text-red-600 hover:text-red-900" title="ปฏิเสธ">
+                                    <i class="fas fa-times"></i>
+                                </button>` : 
+                                borrower.status === 'approved' && borrower.contractId ? 
+                                `<button onclick="viewContract('${borrower.contractId}')" class="text-purple-600 hover:text-purple-900" title="ดูสัญญา">
+                                    <i class="fas fa-file-contract"></i>
+                                </button>` : ''
+                            }
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Function to view borrower images
+        function viewBorrowerImages(borrowerId) {
+            const borrower = borrowersData.find(b => b.id === borrowerId);
+            if (!borrower) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">รูปภาพของ ${borrower.firstName} ${borrower.lastName}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${borrower.idCardImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📋 บัตรประชาชน</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.idCardImage}" alt="ID Card" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.idCardImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.idCardImageSize ? formatFileSize(borrower.idCardImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปบัตรประชาชน</div>'}
+                        
+                        ${borrower.selfieImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📸 รูปถ่ายผู้สมัคร</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.selfieImage}" alt="Selfie" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.selfieImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.selfieImageSize ? formatFileSize(borrower.selfieImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปถ่ายผู้สมัคร</div>'}
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function approveBorrower(id) {
+            if (confirm('คุณต้องการอนุมัติคำขอนี้หรือไม่?')) {
+                try {
+                    const response = await fetch('/api/admin/approve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            borrowerId: id,
+                            action: 'approve'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('อนุมัติสำเร็จ', 'success');
+                        loadAllData();
+                        loadBorrowersTable();
+                    } else {
+                        showAlert('เกิดข้อผิดพลาด', 'error');
+                    }
+                } catch (error) {
+                    showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                }
+            }
+        }
+
+        async function rejectBorrower(id) {
+            if (confirm('คุณต้องการปฏิเสธคำขอนี้หรือไม่?')) {
+                try {
+                    const response = await fetch('/api/admin/approve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            borrowerId: id,
+                            action: 'reject'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('ปฏิเสธสำเร็จ', 'success');
+                        loadAllData();
+                        loadBorrowersTable();
+                    } else {
+                        showAlert('เกิดข้อผิดพลาด', 'error');
+                    }
+                } catch (error) {
+                    showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                }
+            }
+        }
+
+        function viewBorrower(id) {
+            const borrower = borrowersData.find(b => b.id === id);
             if (borrower) {
-                const details = `รายละเอียดผู้กู้เงิน:
-
-ข้อมูลส่วนตัว:
-• ชื่อ: ${borrower.firstName} ${borrower.lastName}
-• เลขบัตรประชาชน: ${borrower.idCard}
-• วันเกิด: ${borrower.birthDate}
-
-ที่อยู่:
-• ตามบัตรประชาชน: ${borrower.addressOnId || borrower.address}
-• ปัจจุบัน: ${borrower.currentAddress || borrower.address}
-
-ข้อมูลการกู้:
-• จำนวนเงิน: ${new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(borrower.requestedAmount)} บาท
-• คะแนนเครดิต: ${borrower.creditScore}
-• รูปแบบชำระ: ${borrower.frequency}
-• สถานะ: ${getStatusText(borrower.status)}
-
-วันที่สมัคร: ${new Date(borrower.createdAt).toLocaleString('th-TH')}`;
+                // สร้าง HTML สำหรับรูปภาพ
+                let imagesHtml = '';
                 
-                alert(details);
-            }
-        }
-
-        function viewIdCard(borrowerId) {
-            const borrower = borrowersData.find(b => b.id === borrowerId);
-            if (borrower && borrower.idCardImage) {
-                // สร้าง modal สำหรับแสดงรูปบัตร
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
-                modal.innerHTML = `
-                    <div class="bg-white rounded-lg p-6 max-w-2xl max-h-[90vh] overflow-auto">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold">บัตรประชาชน - ${borrower.firstName} ${borrower.lastName}</h3>
-                            <button onclick="this.closest('.fixed').remove()" 
-                                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                // รูปบัตรประชาชน
+                if (borrower.idCardImage) {
+                    imagesHtml += `
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">รูปบัตรประชาชน</label>
+                            <div class="border rounded-lg p-2">
+                                <img src="${borrower.idCardImage}" alt="ID Card" class="max-w-full h-48 object-contain rounded mx-auto">
+                                <div class="mt-2 text-center">
+                                    <button onclick="downloadImage('${borrower.idCardImage}', '${borrower.firstName}_${borrower.lastName}_IDCard.jpg')" 
+                                            class="text-blue-600 hover:text-blue-800 text-sm">
+                                        <i class="fas fa-download mr-1"></i>ดาวน์โหลด
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-center">
-                            <img src="${borrower.idCardImage}" alt="บัตรประชาชน" 
-                                class="max-w-full h-auto rounded-lg shadow-lg">
+                    `;
+                }
+                
+                // รูปถ่ายผู้กู้
+                if (borrower.selfieImage) {
+                    imagesHtml += `
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">รูปถ่ายผู้กู้</label>
+                            <div class="border rounded-lg p-2">
+                                <img src="${borrower.selfieImage}" alt="Selfie" class="max-w-full h-48 object-contain rounded mx-auto">
+                                <div class="mt-2 text-center">
+                                    <button onclick="downloadImage('${borrower.selfieImage}', '${borrower.firstName}_${borrower.lastName}_Selfie.jpg')" 
+                                            class="text-blue-600 hover:text-blue-800 text-sm">
+                                        <i class="fas fa-download mr-1"></i>ดาวน์โหลด
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mt-4 text-sm text-gray-600">
-                            <p><strong>เลขบัตร:</strong> ${borrower.idCard}</p>
-                            <p><strong>ชื่อ-นามสกุล:</strong> ${borrower.firstName} ${borrower.lastName}</p>
-                            <p><strong>วันเกิด:</strong> ${borrower.birthDate}</p>
+                    `;
+                }
+                
+                if (!imagesHtml) {
+                    imagesHtml = '<p class="text-gray-500 text-sm">ไม่มีรูปภาพ</p>';
+                }
+                
+                document.getElementById('borrowerDetails').innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">ชื่อ</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.firstName}</p>
                         </div>
-                        <div class="mt-4 flex justify-center space-x-2">
-                            ${borrower.status === 'pending' ? `
-                                <button onclick="approveLoan('${borrower.id}'); this.closest('.fixed').remove();" 
-                                    class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
-                                    ✅ อนุมัติ
-                                </button>
-                                <button onclick="rejectLoan('${borrower.id}'); this.closest('.fixed').remove();" 
-                                    class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
-                                    ❌ ปฏิเสธ
-                                </button>
-                            ` : `
-                                <span class="px-4 py-2 rounded ${getStatusColor(borrower.status)}">
-                                    ${getStatusText(borrower.status)}
-                                </span>
-                            `}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">นามสกุล</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.lastName}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">วันเกิด</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.birthDate}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">เลขบัตรประชาชน</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.idCard}</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">ที่อยู่ตามบัตร</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.addressOnId || borrower.address}</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">ที่อยู่ปัจจุบัน</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.currentAddress || borrower.address}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">จำนวนเงินที่กู้</label>
+                            <p class="mt-1 text-sm text-gray-900">${(borrower.totalLoan || borrower.amount || 0).toLocaleString()} บาท</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">รูปแบบการชำระ</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.frequency}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">อัตราดอกเบี้ย</label>
+                            <p class="mt-1 text-sm text-gray-900">${((borrower.interestRate || 0) * 100).toFixed(2)}%</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">สถานะ</label>
+                            <p class="mt-1 text-sm text-gray-900">${getStatusText(borrower.status)}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 border-t pt-6">
+                        <h4 class="text-lg font-medium text-gray-900 mb-4">📷 รูปภาพ</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${imagesHtml}
                         </div>
                     </div>
                 `;
-                document.body.appendChild(modal);
-                
-                // ปิด modal เมื่อคลิกพื้นหลัง
-                modal.addEventListener('click', function(e) {
-                    if (e.target === modal) {
-                        modal.remove();
-                    }
-                });
-            } else {
-                alert('❌ ไม่พบรูปบัตรประชาชน');
+                document.getElementById('borrowerModal').classList.remove('hidden');
             }
         }
+
+        function downloadImage(imageSrc, filename) {
+            try {
+                const link = document.createElement('a');
+                link.href = imageSrc;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showAlert('ดาวน์โหลดสำเร็จ', 'success');
+            } catch (error) {
+                console.error('Error downloading image:', error);
+                showAlert('ไม่สามารถดาวน์โหลดได้', 'error');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('borrowerModal').classList.add('hidden');
+        }
+
+        function refreshData() {
+            loadAllData();
+            if (currentSection === 'borrowers') loadBorrowersTable();
+            else if (currentSection === 'slips') loadSlipsTable();
+            else if (currentSection === 'documents') loadDocumentsGrid();
+            showAlert('ข้อมูลถูกรีเฟรชแล้ว', 'success');
+        }
+
+        function saveSettings() {
+            const settings = {
+                dailyInterest: document.getElementById('dailyInterest').value,
+                weeklyInterest: document.getElementById('weeklyInterest').value,
+                monthlyInterest: document.getElementById('monthlyInterest').value,
+                maxLoan: document.getElementById('maxLoan').value
+            };
+            
+            localStorage.setItem('baantkSettings', JSON.stringify(settings));
+            showAlert('บันทึกการตั้งค่าสำเร็จ', 'success');
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`;
+            alertDiv.textContent = message;
+            
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': 'รออนุมัติ',
+                'approved': 'อนุมัติ',
+                'rejected': 'ปฏิเสธ'
+            };
+            return statusMap[status] || status;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('th-TH');
+        }
+
+        function viewDocument(url) {
+            window.open(url, '_blank');
+        }
+
+        function downloadDocument(url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = '';
+            link.click();
+        }
+
+        function viewContract(contractId) {
+            if (contractId) {
+                const contractUrl = `contract-sign.html?contractId=${contractId}`;
+                window.open(contractUrl, '_blank');
+            } else {
+                showAlert('ไม่พบข้อมูลสัญญา', 'error');
+            }
+        }
+
+        // Click outside to close modal
+        document.getElementById('borrowerModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
     </script>
 </body>
 </html>

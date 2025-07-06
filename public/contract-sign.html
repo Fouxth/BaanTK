@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สัญญาเงินกู้อิเล็กทรอนิกส์</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+        .signature-pad { border: 2px dashed #d1d5db; }
+        .contract-text { font-size: 14px; line-height: 1.8; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b px-4 py-3 no-print">
+        <div class="flex items-center justify-between max-w-4xl mx-auto">
+            <div class="flex items-center">
+                <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mr-3">
+                    <i class="fas fa-file-contract text-white"></i>
+                </div>
+                <h1 class="text-xl font-semibold text-gray-900">สัญญาเงินกู้อิเล็กทรอนิกส์</h1>
+            </div>
+            <div class="text-sm text-gray-600">
+                <span id="contractId">กำลังโหลด...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto p-4">
+        <!-- Contract Display -->
+        <div id="contractDisplay" class="bg-white rounded-lg shadow-lg p-8 mb-6">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">สัญญาเงินกู้ออนไลน์</h2>
+                <p class="text-gray-600">เลขที่สัญญา: <span id="displayContractId" class="font-mono">-</span></p>
+                <p class="text-gray-600">วันที่: <span id="contractDate">-</span></p>
+            </div>
+
+            <div id="contractContent" class="contract-text text-gray-800 space-y-6">
+                <!-- Contract content will be loaded here -->
+            </div>
+
+            <!-- Loan Summary -->
+            <div class="bg-blue-50 rounded-lg p-6 mt-8">
+                <h3 class="text-lg font-semibold text-blue-900 mb-4">📋 สรุปข้อมูลการกู้</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-sm text-blue-700">จำนวนเงินกู้:</span>
+                        <span id="loanAmount" class="block text-lg font-semibold text-blue-900">-</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-blue-700">อัตราดอกเบี้ย:</span>
+                        <span id="interestRate" class="block text-lg font-semibold text-blue-900">-</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-blue-700">ยอดรวมที่ต้องชำระ:</span>
+                        <span id="totalAmount" class="block text-lg font-semibold text-blue-900">-</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-blue-700">การผ่อนชำระ:</span>
+                        <span id="installment" class="block text-lg font-semibold text-blue-900">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consent & Signature Section -->
+        <div class="bg-white rounded-lg shadow-lg p-6 no-print">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">✅ การยืนยันและลงนาม</h3>
+            
+            <!-- Consent Checkboxes -->
+            <div class="space-y-4 mb-6">
+                <label class="flex items-start">
+                    <input type="checkbox" id="consent1" class="mt-1 mr-3 h-4 w-4 text-green-600" required>
+                    <span class="text-sm text-gray-700">ข้าพเจ้าได้อ่านและเข้าใจเงื่อนไขในสัญญานี้ทุกข้อแล้ว</span>
+                </label>
+                <label class="flex items-start">
+                    <input type="checkbox" id="consent2" class="mt-1 mr-3 h-4 w-4 text-green-600" required>
+                    <span class="text-sm text-gray-700">ข้าพเจ้ายินยอมให้เก็บ ใช้ และเปิดเผยข้อมูลส่วนบุคคลตามนโยบายความเป็นส่วนตัว</span>
+                </label>
+                <label class="flex items-start">
+                    <input type="checkbox" id="consent3" class="mt-1 mr-3 h-4 w-4 text-green-600" required>
+                    <span class="text-sm text-gray-700">ข้าพเจ้ายืนยันว่าข้อมูลทั้งหมดที่ให้ไว้เป็นความจริงและยินยอมตามเงื่อนไขการกู้</span>
+                </label>
+            </div>
+
+            <!-- Digital Signature -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">ลายเซ็นดิจิทัล:</label>
+                <div class="relative">
+                    <canvas id="signaturePad" class="signature-pad bg-gray-50 rounded-lg cursor-crosshair" 
+                            width="400" height="200"></canvas>
+                    <button type="button" id="clearSignature" 
+                            class="absolute top-2 right-2 bg-red-500 text-white text-xs px-3 py-1 rounded hover:bg-red-600">
+                        ล้าง
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">กรุณาเซ็นชื่อในกรอบด้านบน</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button id="printContract" 
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition">
+                    <i class="fas fa-print mr-2"></i>พิมพ์สัญญา
+                </button>
+                <button id="signContract" 
+                        class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition disabled:bg-gray-400" 
+                        disabled>
+                    <i class="fas fa-signature mr-2"></i>ยืนยันและลงนาม
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Display -->
+        <div id="statusDisplay" class="mt-6 p-4 rounded-lg hidden">
+            <div class="flex items-center">
+                <div class="mr-3">
+                    <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-check text-green-600"></i>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-green-900">ลงนามสำเร็จ</h4>
+                    <p class="text-sm text-green-700">สัญญาของคุณได้รับการบันทึกแล้ว</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let contractData = null;
+        let signaturePad = null;
+        let userId = null;
+        let contractId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Initialize LIFF
+                await liff.init({ liffId: "2007493964-gWv9bxBR" });
+                
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return;
+                }
+
+                const profile = await liff.getProfile();
+                userId = profile.userId;
+
+                // Get contract ID from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                contractId = urlParams.get('contractId');
+
+                if (!contractId) {
+                    alert('❌ ไม่พบเลขที่สัญญา');
+                    return;
+                }
+
+                // Load contract data
+                await loadContractData();
+                
+                // Initialize signature pad
+                initSignaturePad();
+                
+                // Setup event listeners
+                setupEventListeners();
+
+            } catch (error) {
+                console.error('Error initializing:', error);
+                alert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            }
+        });
+
+        async function loadContractData() {
+            try {
+                const response = await fetch(`/api/contract/${contractId}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${userId}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load contract');
+                }
+
+                contractData = await response.json();
+                displayContract();
+                
+            } catch (error) {
+                console.error('Error loading contract:', error);
+                alert('❌ ไม่สามารถโหลดข้อมูลสัญญาได้');
+            }
+        }
+
+        function displayContract() {
+            if (!contractData) return;
+
+            // Header info
+            document.getElementById('contractId').textContent = contractData.contractId;
+            document.getElementById('displayContractId').textContent = contractData.contractId;
+            document.getElementById('contractDate').textContent = new Date().toLocaleDateString('th-TH');
+
+            // Contract content
+            const contentHtml = `
+                <div class="space-y-6">
+                    <div>
+                        <p><strong>ผู้ให้กู้:</strong> บริษัท บ้านทีเค จำกัด</p>
+                        <p><strong>ผู้กู้:</strong> ${contractData.borrower.fullName}</p>
+                        <p><strong>เลขบัตรประชาชน:</strong> ${contractData.borrower.idCard}</p>
+                        <p><strong>ที่อยู่:</strong> ${contractData.borrower.address}</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-semibold text-blue-900">${contractData.terms.article1.title}</h4>
+                            <p>${contractData.terms.article1.content}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-blue-900">${contractData.terms.article2.title}</h4>
+                            <p>${contractData.terms.article2.content}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-blue-900">${contractData.terms.article3.title}</h4>
+                            <p>${contractData.terms.article3.content}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-blue-900">${contractData.terms.article4.title}</h4>
+                            <p>${contractData.terms.article4.content}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-blue-900">${contractData.terms.article5.title}</h4>
+                            <p>${contractData.terms.article5.content}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm"><strong>ข้อกำหนดทางกฎหมาย:</strong></p>
+                        <p class="text-sm">${contractData.terms.legalBasis}</p>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('contractContent').innerHTML = contentHtml;
+
+            // Loan summary
+            document.getElementById('loanAmount').textContent = `${contractData.loan.principal.toLocaleString()} บาท`;
+            document.getElementById('interestRate').textContent = `${(contractData.loan.interestRate * 100).toFixed(2)}%`;
+            document.getElementById('totalAmount').textContent = `${contractData.loan.totalAmount.toLocaleString()} บาท`;
+            document.getElementById('installment').textContent = `${contractData.loan.installmentAmount.toLocaleString()} บาท/${getFrequencyText(contractData.loan.frequency)}`;
+        }
+
+        function initSignaturePad() {
+            const canvas = document.getElementById('signaturePad');
+            const ctx = canvas.getContext('2d');
+            
+            let isDrawing = false;
+            let lastX = 0;
+            let lastY = 0;
+
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            // Touch events
+            canvas.addEventListener('touchstart', handleTouch);
+            canvas.addEventListener('touchmove', handleTouch);
+            canvas.addEventListener('touchend', stopDrawing);
+
+            function startDrawing(e) {
+                isDrawing = true;
+                [lastX, lastY] = getMousePos(e);
+            }
+
+            function draw(e) {
+                if (!isDrawing) return;
+                
+                const [currentX, currentY] = getMousePos(e);
+                
+                ctx.beginPath();
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(currentX, currentY);
+                ctx.stroke();
+                
+                [lastX, lastY] = [currentX, currentY];
+                
+                checkSignature();
+            }
+
+            function stopDrawing() {
+                isDrawing = false;
+            }
+
+            function handleTouch(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 
+                                                 e.type === 'touchmove' ? 'mousemove' : 'mouseup', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                canvas.dispatchEvent(mouseEvent);
+            }
+
+            function getMousePos(e) {
+                const rect = canvas.getBoundingClientRect();
+                return [
+                    e.clientX - rect.left,
+                    e.clientY - rect.top
+                ];
+            }
+
+            function checkSignature() {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    if (data[i + 3] !== 0) {
+                        enableSignButton();
+                        return;
+                    }
+                }
+            }
+
+            // Clear signature
+            document.getElementById('clearSignature').addEventListener('click', () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                disableSignButton();
+            });
+
+            // Set canvas style
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#1f2937';
+        }
+
+        function setupEventListeners() {
+            // Consent checkboxes
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', checkConsent);
+            });
+
+            // Print contract
+            document.getElementById('printContract').addEventListener('click', () => {
+                window.print();
+            });
+
+            // Sign contract
+            document.getElementById('signContract').addEventListener('click', signContract);
+        }
+
+        function checkConsent() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            
+            if (allChecked) {
+                enableSignButton();
+            } else {
+                disableSignButton();
+            }
+        }
+
+        function enableSignButton() {
+            const signButton = document.getElementById('signContract');
+            signButton.disabled = false;
+            signButton.classList.remove('disabled:bg-gray-400');
+        }
+
+        function disableSignButton() {
+            const signButton = document.getElementById('signContract');
+            signButton.disabled = true;
+            signButton.classList.add('disabled:bg-gray-400');
+        }
+
+        async function signContract() {
+            try {
+                const canvas = document.getElementById('signaturePad');
+                const signatureData = canvas.toDataURL();
+                
+                const response = await fetch('/api/contract/sign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${userId}`
+                    },
+                    body: JSON.stringify({
+                        contractId,
+                        signatureData,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to sign contract');
+                }
+
+                // Show success
+                showSuccess();
+                
+                // Send LINE message
+                if (liff.isInClient()) {
+                    await liff.sendMessages([{
+                        type: 'text',
+                        text: `✅ ลงนามสัญญาสำเร็จ!\n\nเลขที่สัญญา: ${contractId}\nเงินจะถูกโอนภายใน 24 ชั่วโมง`
+                    }]);
+                }
+
+            } catch (error) {
+                console.error('Error signing contract:', error);
+                alert('❌ เกิดข้อผิดพลาดในการลงนาม');
+            }
+        }
+
+        function showSuccess() {
+            const statusDisplay = document.getElementById('statusDisplay');
+            statusDisplay.classList.remove('hidden');
+            statusDisplay.classList.add('bg-green-50', 'border', 'border-green-200');
+            
+            // Disable form
+            document.getElementById('signContract').disabled = true;
+            document.getElementById('signContract').textContent = 'ลงนามแล้ว';
+            document.getElementById('signContract').classList.add('bg-gray-400');
+        }
+
+        function getFrequencyText(frequency) {
+            const frequencies = {
+                daily: 'วัน',
+                weekly: 'สัปดาห์',
+                monthly: 'เดือน'
+            };
+            return frequencies[frequency] || 'เดือน';
+        }
+    </script>
+</body>
+</html>

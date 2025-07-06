@@ -41,6 +41,46 @@
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- Admin Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div class="text-center mb-6">
+                <div class="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fas fa-lock text-yellow-600 text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900">🔐 Admin Login</h2>
+                <p class="text-gray-600 mt-2">กรุณาใส่ Admin Token เพื่อเข้าสู่ระบบ</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label for="adminToken" class="block text-sm font-medium text-gray-700 mb-2">Admin Token</label>
+                    <input 
+                        type="password" 
+                        id="adminToken" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="••••••••••••"
+                        required
+                    >
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition duration-200"
+                >
+                    <i class="fas fa-sign-in-alt mr-2"></i>เข้าสู่ระบบ
+                </button>
+            </form>
+            
+            <div id="loginError" class="mt-4 text-red-600 text-sm text-center hidden"></div>
+            
+            <div class="mt-6 text-center">
+                <p class="text-xs text-gray-500">
+                    💡 ใช้ token: <code class="bg-gray-100 px-2 py-1 rounded">********</code>
+                </p>
+            </div>
+        </div>
+    </div>
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar fixed left-0 top-0 w-64 bg-white shadow-lg z-50">
         <div class="p-6 border-b">
@@ -87,6 +127,9 @@
                 <div class="flex items-center space-x-4">
                     <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md" onclick="refreshData()">
                         <i class="fas fa-sync-alt mr-2"></i>รีเฟรช
+                    </button>
+                    <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md" onclick="logout()">
+                        <i class="fas fa-sign-out-alt mr-2"></i>ออกจากระบบ
                     </button>
                     <div class="text-sm text-gray-500">
                         <i class="fas fa-clock mr-1"></i>
@@ -538,19 +581,79 @@
         let slipsData = [];
         let documentsData = [];
         let currentSection = 'dashboard';
+        let adminToken = '';
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // Check for existing admin token
+            const savedToken = localStorage.getItem('adminToken');
+            if (savedToken) {
+                adminToken = savedToken;
+                hideLoginModal();
+            } else {
+                showLoginModal();
+            }
+            
             updateCurrentTime();
             setInterval(updateCurrentTime, 1000);
-            loadAllData();
-            initAnalytics();
             
             // Mobile menu toggle
             document.getElementById('menuBtn').addEventListener('click', function() {
                 document.getElementById('sidebar').classList.toggle('active');
             });
         });
+
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+            // Load data after successful login
+            loadAllData();
+            initAnalytics();
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const token = document.getElementById('adminToken').value;
+            const errorDiv = document.getElementById('loginError');
+            
+            try {
+                // Test the token by making an API call
+                const response = await fetch('/api/admin/dashboard-stats', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    adminToken = token;
+                    localStorage.setItem('adminToken', token);
+                    errorDiv.classList.add('hidden');
+                    hideLoginModal();
+                    showAlert('เข้าสู่ระบบสำเร็จ!', 'success');
+                } else {
+                    const errorData = await response.json();
+                    errorDiv.textContent = errorData.message || 'Admin Token ไม่ถูกต้อง';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorDiv.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            adminToken = '';
+            localStorage.removeItem('adminToken');
+            showLoginModal();
+            showAlert('ออกจากระบบเรียบร้อย', 'info');
+        }
 
         function updateCurrentTime() {
             const now = new Date();
@@ -596,25 +699,48 @@
         }
 
         async function loadAllData() {
+            if (!adminToken) {
+                console.warn('No admin token available');
+                return;
+            }
+            
             try {
+                const headers = {
+                    'Authorization': `Bearer ${adminToken}`,
+                    'Content-Type': 'application/json'
+                };
+
                 // Load borrowers
-                const borrowersResponse = await fetch('/api/admin/borrowers');
+                const borrowersResponse = await fetch('/api/admin/borrowers', { headers });
+                if (!borrowersResponse.ok) throw new Error('Failed to load borrowers');
                 borrowersData = await borrowersResponse.json();
                 
-                // Load slips
-                const slipsResponse = await fetch('/api/admin/slips');
-                slipsData = await slipsResponse.json();
+                // Load slips  
+                const slipsResponse = await fetch('/api/admin/slips', { headers });
+                if (slipsResponse.ok) {
+                    slipsData = await slipsResponse.json();
+                } else {
+                    slipsData = []; // Fallback if slips endpoint doesn't exist
+                }
                 
                 // Load documents
-                const documentsResponse = await fetch('/api/admin/images');
-                documentsData = await documentsResponse.json();
+                const documentsResponse = await fetch('/api/admin/images', { headers });
+                if (documentsResponse.ok) {
+                    documentsData = await documentsResponse.json();
+                } else {
+                    documentsData = []; // Fallback if images endpoint doesn't exist
+                }
                 
                 updateDashboardStats();
                 updateReportsData();
                 
             } catch (error) {
                 console.error('Error loading data:', error);
-                showAlert('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
+                if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                    logout(); // Auto logout on auth error
+                } else {
+                    showAlert('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message, 'error');
+                }
             }
         }
 
@@ -686,406 +812,313 @@
             
             borrowersData.forEach(borrower => {
                 const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                
+                // Format date
+                const createdAt = borrower.createdAt ? 
+                    new Date(borrower.createdAt.seconds * 1000).toLocaleDateString('th-TH') : 
+                    'N/A';
+
+                // Calculate total amount
+                const totalAmount = borrower.totalLoan ? 
+                    borrower.totalLoan + (borrower.totalLoan * (borrower.interestRate || 0)) : 
+                    borrower.amount || 0;
+
+                // Status badge
+                const statusClass = getStatusClass(borrower.status);
+                const statusText = getStatusText(borrower.status);
+
+                // Images indicators
+                const imageIndicators = [];
+                if (borrower.idCardImage || borrower.hasIdCardImage) {
+                    imageIndicators.push('<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">📋 ID</span>');
+                }
+                if (borrower.selfieImage || borrower.hasSelfieImage) {
+                    imageIndicators.push('<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">📸 Self</span>');
+                }
+
                 row.innerHTML = `
-                    <td class="px-6 py-4">${borrower.firstName} ${borrower.lastName}</td>
-                    <td class="px-6 py-4">${(borrower.totalLoan || 0).toLocaleString()} บาท</td>
-                    <td class="px-6 py-4">${formatDate(borrower.createdAt)}</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-1 rounded-full text-xs status-${borrower.status}">
-                            ${getStatusText(borrower.status)}
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-10 w-10">
+                                <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <span class="text-sm font-medium text-gray-600">
+                                        ${borrower.firstName ? borrower.firstName.charAt(0) : 'N'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900">
+                                    ${borrower.firstName || 'N/A'} ${borrower.lastName || ''}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    ${borrower.idCard ? `${borrower.idCard.substring(0, 4)}-xxxx-xxxx-x${borrower.idCard.slice(-1)}` : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${formatMoney(totalAmount)}</div>
+                        <div class="text-sm text-gray-500">${borrower.frequency || 'N/A'}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusText}
                         </span>
                     </td>
-                    <td class="px-6 py-4">
-                        <button onclick="viewBorrower('${borrower.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        ${borrower.status === 'pending' ? `
-                            <button onclick="approveBorrower('${borrower.id}')" class="text-green-600 hover:text-green-800 mr-2">
-                                <i class="fas fa-check"></i>
-                            </button>
-                            <button onclick="rejectBorrower('${borrower.id}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        ` : ''}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${createdAt}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex flex-wrap gap-1">
+                            ${imageIndicators.join('')}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex space-x-2">
+                            ${borrower.idCardImage || borrower.selfieImage ? 
+                                `<button onclick="viewBorrowerImages('${borrower.id}')" class="text-blue-600 hover:text-blue-900" title="ดูรูปภาพ">
+                                    <i class="fas fa-images"></i>
+                                </button>` : ''
+                            }
+                            ${borrower.status === 'pending' ? 
+                                `<button onclick="approveBorrower('${borrower.id}')" class="text-green-600 hover:text-green-900" title="อนุมัติ">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="rejectBorrower('${borrower.id}')" class="text-red-600 hover:text-red-900" title="ปฏิเสธ">
+                                    <i class="fas fa-times"></i>
+                                </button>` : 
+                                borrower.status === 'approved' && borrower.contractId ? 
+                                `<button onclick="viewContract('${borrower.contractId}')" class="text-purple-600 hover:text-purple-900" title="ดูสัญญา">
+                                    <i class="fas fa-file-contract"></i>
+                                </button>` : ''
+                            }
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
         }
 
-        function loadSlipsTable() {
-            const tbody = document.getElementById('slipsTableBody');
+        // Function to view borrower images
+        function viewBorrowerImages(borrowerId) {
+            const borrower = borrowersData.find(b => b.id === borrowerId);
+            if (!borrower) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">รูปภาพของ ${borrower.firstName} ${borrower.lastName}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${borrower.idCardImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📋 บัตรประชาชน</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.idCardImage}" alt="ID Card" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.idCardImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.idCardImageSize ? formatFileSize(borrower.idCardImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปบัตรประชาชน</div>'}
+                        
+                        ${borrower.selfieImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📸 รูปถ่ายผู้สมัคร</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.selfieImage}" alt="Selfie" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.selfieImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.selfieImageSize ? formatFileSize(borrower.selfieImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปถ่ายผู้สมัคร</div>'}
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Enhanced borrower display with image support
+        function displayBorrowers(borrowers) {
+            const tbody = document.getElementById('borrowersTableBody');
             tbody.innerHTML = '';
-            
-            slipsData.forEach(slip => {
+
+            borrowers.forEach(borrower => {
                 const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                
+                // Format date
+                const createdAt = borrower.createdAt ? 
+                    new Date(borrower.createdAt.seconds * 1000).toLocaleDateString('th-TH') : 
+                    'N/A';
+
+                // Calculate total amount
+                const totalAmount = borrower.totalLoan ? 
+                    borrower.totalLoan + (borrower.totalLoan * (borrower.interestRate || 0)) : 
+                    borrower.amount || 0;
+
+                // Status badge
+                const statusClass = getStatusClass(borrower.status);
+                const statusText = getStatusText(borrower.status);
+
+                // Images indicators
+                const imageIndicators = [];
+                if (borrower.idCardImage || borrower.hasIdCardImage) {
+                    imageIndicators.push('<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">📋 ID</span>');
+                }
+                if (borrower.selfieImage || borrower.hasSelfieImage) {
+                    imageIndicators.push('<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">📸 Self</span>');
+                }
+
                 row.innerHTML = `
-                    <td class="px-6 py-4">${formatDate(slip.createdAt)}</td>
-                    <td class="px-6 py-4">${(slip.amount || 0).toLocaleString()} บาท</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-1 rounded-full text-xs status-${slip.status}">
-                            ${getStatusText(slip.status)}
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-10 w-10">
+                                <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <span class="text-sm font-medium text-gray-600">
+                                        ${borrower.firstName ? borrower.firstName.charAt(0) : 'N'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900">
+                                    ${borrower.firstName || 'N/A'} ${borrower.lastName || ''}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    ${borrower.idCard ? `${borrower.idCard.substring(0, 4)}-xxxx-xxxx-x${borrower.idCard.slice(-1)}` : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${formatMoney(totalAmount)}</div>
+                        <div class="text-sm text-gray-500">${borrower.frequency || 'N/A'}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusText}
                         </span>
                     </td>
-                    <td class="px-6 py-4">
-                        <button onclick="viewSlip('${slip.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        ${slip.status === 'pending' ? `
-                            <button onclick="approveSlip('${slip.id}')" class="text-green-600 hover:text-green-800 mr-2">
-                                <i class="fas fa-check"></i>
-                            </button>
-                            <button onclick="rejectSlip('${slip.id}')" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        ` : ''}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${createdAt}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex flex-wrap gap-1">
+                            ${imageIndicators.join('')}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex space-x-2">
+                            ${borrower.idCardImage || borrower.selfieImage ? 
+                                `<button onclick="viewBorrowerImages('${borrower.id}')" class="text-blue-600 hover:text-blue-900" title="ดูรูปภาพ">
+                                    <i class="fas fa-images"></i>
+                                </button>` : ''
+                            }
+                            ${borrower.status === 'pending' ? 
+                                `<button onclick="approveBorrower('${borrower.id}')" class="text-green-600 hover:text-green-900" title="อนุมัติ">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="rejectBorrower('${borrower.id}')" class="text-red-600 hover:text-red-900" title="ปฏิเสธ">
+                                    <i class="fas fa-times"></i>
+                                </button>` : 
+                                borrower.status === 'approved' && borrower.contractId ? 
+                                `<button onclick="viewContract('${borrower.contractId}')" class="text-purple-600 hover:text-purple-900" title="ดูสัญญา">
+                                    <i class="fas fa-file-contract"></i>
+                                </button>` : ''
+                            }
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
         }
 
-        function loadDocumentsGrid() {
-            const grid = document.getElementById('documentsGrid');
-            grid.innerHTML = '';
-            
-            documentsData.forEach(doc => {
-                const card = document.createElement('div');
-                card.className = 'card bg-white p-4 rounded-lg shadow';
-                card.innerHTML = `
-                    <img src="${doc.url}" alt="Document" class="w-full h-40 object-cover rounded mb-3">
-                    <p class="text-sm text-gray-600">${formatDate(doc.createdAt)}</p>
-                    <div class="mt-2">
-                        <button onclick="viewDocument('${doc.url}')" class="text-blue-600 hover:text-blue-800 mr-2">
-                            <i class="fas fa-eye"></i> ดู
-                        </button>
-                        <button onclick="downloadDocument('${doc.url}')" class="text-green-600 hover:text-green-800">
-                            <i class="fas fa-download"></i> ดาวน์โหลด
+        // Function to view borrower images
+        function viewBorrowerImages(borrowerId) {
+            const borrower = borrowersData.find(b => b.id === borrowerId);
+            if (!borrower) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">รูปภาพของ ${borrower.firstName} ${borrower.lastName}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
                         </button>
                     </div>
-                `;
-                grid.appendChild(card);
-            });
-        }
-
-        function initAnalytics() {
-            // Initialize analytics with sample data
-            updateAnalytics();
-            updateActivityFeed();
-        }
-
-        function updateAnalytics() {
-            if (!borrowersData || borrowersData.length === 0) {
-                console.log('No borrowers data available for analytics');
-                return;
-            }
-
-            // Calculate status statistics
-            const statusCounts = {
-                pending: borrowersData.filter(b => b.status === 'pending').length,
-                approved: borrowersData.filter(b => b.status === 'approved').length,
-                rejected: borrowersData.filter(b => b.status === 'rejected').length
-            };
-
-            const total = statusCounts.pending + statusCounts.approved + statusCounts.rejected;
-
-            // Update status analytics
-            updateProgressBar('pending', statusCounts.pending, total);
-            updateProgressBar('approved', statusCounts.approved, total);
-            updateProgressBar('rejected', statusCounts.rejected, total);
-
-            // Calculate loan amount ranges
-            const ranges = {
-                range1: borrowersData.filter(b => b.amount <= 5000).length,
-                range2: borrowersData.filter(b => b.amount > 5000 && b.amount <= 15000).length,
-                range3: borrowersData.filter(b => b.amount > 15000 && b.amount <= 50000).length,
-                range4: borrowersData.filter(b => b.amount > 50000).length
-            };
-
-            // Update amount range analytics
-            updateProgressBar('range1', ranges.range1, total);
-            updateProgressBar('range2', ranges.range2, total);
-            updateProgressBar('range3', ranges.range3, total);
-            updateProgressBar('range4', ranges.range4, total);
-
-            // Update reports data
-            updateReportsData();
-        }
-
-        function updateProgressBar(type, count, total) {
-            const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-            
-            const countElement = document.getElementById(`${type}Count`);
-            const barElement = document.getElementById(`${type}Bar`);
-            
-            if (countElement) countElement.textContent = count;
-            if (barElement) {
-                barElement.style.width = `${percentage}%`;
-                // Add smooth transition
-                barElement.style.transition = 'width 0.5s ease-in-out';
-            }
-        }
-
-        function updateActivityFeed() {
-            const activityFeed = document.getElementById('activityFeed');
-            if (!activityFeed) return;
-
-            // Sample recent activities
-            const recentActivities = [
-                { time: '2 นาทีที่แล้ว', action: 'คำขอใหม่ถูกส่ง', user: 'สมชาย ใจดี', type: 'new' },
-                { time: '15 นาทีที่แล้ว', action: 'อนุมัติคำขอ', user: 'สมหญิง ดีมาก', type: 'approved' },
-                { time: '1 ชั่วโมงที่แล้ว', action: 'ปฏิเสธคำขอ', user: 'สมศักดิ์ มีปัญหา', type: 'rejected' },
-                { time: '2 ชั่วโมงที่แล้ว', action: 'ชำระเงินงวดที่ 1', user: 'สมใจ รักดี', type: 'payment' }
-            ];
-
-            const activityIcons = {
-                new: { icon: 'fas fa-plus-circle', color: 'text-blue-600', bg: 'bg-blue-100' },
-                approved: { icon: 'fas fa-check-circle', color: 'text-green-600', bg: 'bg-green-100' },
-                rejected: { icon: 'fas fa-times-circle', color: 'text-red-600', bg: 'bg-red-100' },
-                payment: { icon: 'fas fa-money-bill-wave', color: 'text-purple-600', bg: 'bg-purple-100' }
-            };
-
-            activityFeed.innerHTML = recentActivities.map(activity => {
-                const iconInfo = activityIcons[activity.type];
-                return `
-                    <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <div class="${iconInfo.bg} p-2 rounded-full mr-3">
-                            <i class="${iconInfo.icon} ${iconInfo.color}"></i>
-                        </div>
-                        <div class="flex-1">
-                            <div class="text-sm font-medium">${activity.action}</div>
-                            <div class="text-xs text-gray-600">${activity.user} • ${activity.time}</div>
-                        </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${borrower.idCardImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📋 บัตรประชาชน</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.idCardImage}" alt="ID Card" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.idCardImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.idCardImageSize ? formatFileSize(borrower.idCardImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปบัตรประชาชน</div>'}
+                        
+                        ${borrower.selfieImage ? `
+                            <div class="space-y-2">
+                                <h4 class="font-medium text-gray-700">📸 รูปถ่ายผู้สมัคร</h4>
+                                <div class="border rounded-lg overflow-hidden">
+                                    <img src="${borrower.selfieImage}" alt="Selfie" class="w-full h-auto max-h-64 object-contain">
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    ชื่อไฟล์: ${borrower.selfieImageName || 'ไม่ระบุ'}<br>
+                                    ขนาด: ${borrower.selfieImageSize ? formatFileSize(borrower.selfieImageSize) : 'ไม่ระบุ'}
+                                </p>
+                            </div>
+                        ` : '<div class="text-center text-gray-500">ไม่มีรูปถ่ายผู้สมัคร</div>'}
                     </div>
-                `;
-            }).join('');
-        }
-
-        function updateReportsData() {
-            // Calculate today's, this week's, and this month's data
-            const today = new Date();
-            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            const weekStart = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
-            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-
-            const todayCount = borrowersData.filter(b => {
-                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
-                return createdAt >= todayStart;
-            }).length;
-
-            const weekCount = borrowersData.filter(b => {
-                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
-                return createdAt >= weekStart;
-            }).length;
-
-            const monthCount = borrowersData.filter(b => {
-                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
-                return createdAt >= monthStart;
-            }).length;
-
-            // Update report cards
-            const elements = {
-                todayReport: todayCount,
-                weekReport: weekCount,
-                monthReport: monthCount
-            };
-
-            Object.entries(elements).forEach(([id, value]) => {
-                const element = document.getElementById(id);
-                if (element) element.textContent = value;
-            });
-
-            // Calculate performance metrics
-            updatePerformanceMetrics();
-            
-            // Update activity feed and summary
-            updateActivityFeed();
-            updateSummaryData();
-        }
-
-        function updateActivityFeed() {
-            const activityFeed = document.getElementById('activityFeed');
-            if (!activityFeed) return;
-
-            // Get recent activities (last 10)
-            const recentActivities = borrowersData
-                .sort((a, b) => {
-                    const dateA = new Date(a.createdAt?.seconds * 1000 || a.createdAt || 0);
-                    const dateB = new Date(b.createdAt?.seconds * 1000 || b.createdAt || 0);
-                    return dateB - dateA;
-                })
-                .slice(0, 10);
-
-            activityFeed.innerHTML = '';
-
-            if (recentActivities.length === 0) {
-                activityFeed.innerHTML = `
-                    <div class="text-center text-gray-500 py-8">
-                        <i class="fas fa-inbox text-4xl mb-2"></i>
-                        <p>ไม่มีกิจกรรมล่าสุด</p>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            ปิด
+                        </button>
                     </div>
-                `;
-                return;
-            }
-
-            recentActivities.forEach(activity => {
-                const createdAt = new Date(activity.createdAt?.seconds * 1000 || activity.createdAt);
-                const timeAgo = getTimeAgo(createdAt);
-                
-                const statusIcon = {
-                    'pending': '<i class="fas fa-clock text-orange-500"></i>',
-                    'approved': '<i class="fas fa-check-circle text-green-500"></i>',
-                    'rejected': '<i class="fas fa-times-circle text-red-500"></i>'
-                }[activity.status] || '<i class="fas fa-file text-gray-500"></i>';
-
-                const statusText = {
-                    'pending': 'ยื่นคำขอใหม่',
-                    'approved': 'อนุมัติคำขอ',
-                    'rejected': 'ปฏิเสธคำขอ'
-                }[activity.status] || 'อัพเดตสถานะ';
-
-                const activityItem = document.createElement('div');
-                activityItem.className = 'flex items-center p-3 border-l-4 border-gray-200 bg-gray-50 rounded-r-lg hover:bg-gray-100 transition-colors';
-                
-                activityItem.innerHTML = `
-                    <div class="mr-3">${statusIcon}</div>
-                    <div class="flex-1">
-                        <div class="text-sm font-medium text-gray-900">
-                            ${activity.firstName} ${activity.lastName} ${statusText}
-                        </div>
-                        <div class="text-xs text-gray-500">
-                            ${(activity.amount || 0).toLocaleString()} บาท • ${timeAgo}
-                        </div>
-                    </div>
-                    <div class="text-xs text-gray-400">
-                        ${createdAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                `;
-
-                activityFeed.appendChild(activityItem);
-            });
+                </div>
+            `;
+            document.body.appendChild(modal);
         }
 
-        function updateSummaryData() {
-            const today = new Date();
-            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-            // Calculate summary data
-            const pendingCount = borrowersData.filter(b => b.status === 'pending').length;
-            
-            const approvedToday = borrowersData.filter(b => {
-                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
-                return b.status === 'approved' && createdAt >= todayStart;
-            }).length;
-
-            const totalAmountToday = borrowersData
-                .filter(b => {
-                    const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
-                    return createdAt >= todayStart;
-                })
-                .reduce((sum, b) => sum + (b.amount || 0), 0);
-
-            const avgAmount = borrowersData.length > 0 
-                ? Math.round(borrowersData.reduce((sum, b) => sum + (b.amount || 0), 0) / borrowersData.length)
-                : 0;
-
-            // Update summary elements
-            const summaryElements = {
-                summaryPending: pendingCount,
-                summaryApprovedToday: approvedToday,
-                summaryTotalToday: totalAmountToday.toLocaleString(),
-                summaryAvgAmount: avgAmount.toLocaleString()
-            };
-
-            Object.entries(summaryElements).forEach(([id, value]) => {
-                const element = document.getElementById(id);
-                if (element) {
-                    if (id === 'summaryTotalToday' || id === 'summaryAvgAmount') {
-                        element.textContent = `${value} บาท`;
-                    } else {
-                        element.textContent = value;
-                    }
-                }
-            });
-        }
-
-        function getTimeAgo(date) {
-            const now = new Date();
-            const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-            
-            if (diffInMinutes < 1) return 'เมื่อสักครู่';
-            if (diffInMinutes < 60) return `${diffInMinutes} นาทีที่แล้ว`;
-            
-            const diffInHours = Math.floor(diffInMinutes / 60);
-            if (diffInHours < 24) return `${diffInHours} ชั่วโมงที่แล้ว`;
-            
-            const diffInDays = Math.floor(diffInHours / 24);
-            if (diffInDays < 7) return `${diffInDays} วันที่แล้ว`;
-            
-            return date.toLocaleDateString('th-TH');
-        }
-
-        function updatePerformanceMetrics() {
-            const approvedCount = borrowersData.filter(b => b.status === 'approved').length;
-            const totalCount = borrowersData.length;
-            const approvalRate = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
-
-            // Update approval rate
-            const approvalRateElement = document.getElementById('approvalRate');
-            const approvalRateBarElement = document.getElementById('approvalRateBar');
-            
-            if (approvalRateElement) approvalRateElement.textContent = `${approvalRate}%`;
-            if (approvalRateBarElement) {
-                approvalRateBarElement.style.width = `${approvalRate}%`;
-                approvalRateBarElement.style.transition = 'width 0.5s ease-in-out';
-            }
-
-            // Calculate loan amounts
-            const amounts = borrowersData.map(b => b.amount || 0);
-            const avgAmount = amounts.length > 0 ? Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length) : 0;
-            const minAmount = amounts.length > 0 ? Math.min(...amounts) : 0;
-            const maxAmount = amounts.length > 0 ? Math.max(...amounts) : 0;
-            const totalAmount = amounts.reduce((a, b) => a + b, 0);
-
-            // Update loan metrics
-            const loanMetrics = {
-                avgLoanAmount: avgAmount.toLocaleString(),
-                minLoan: minAmount.toLocaleString(),
-                maxLoan: maxAmount.toLocaleString(),
-                totalLoans: totalAmount.toLocaleString()
-            };
-
-            Object.entries(loanMetrics).forEach(([id, value]) => {
-                const element = document.getElementById(id);
-                if (element) element.textContent = value;
-            });
-        }
-
-        function exportReport(type) {
-            const reportData = {
-                type: type,
-                timestamp: new Date().toISOString(),
-                data: borrowersData,
-                summary: {
-                    total: borrowersData.length,
-                    approved: borrowersData.filter(b => b.status === 'approved').length,
-                    pending: borrowersData.filter(b => b.status === 'pending').length,
-                    rejected: borrowersData.filter(b => b.status === 'rejected').length
-                }
-            };
-
-            // Create and download JSON file
-            const dataStr = JSON.stringify(reportData, null, 2);
-            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            const url = URL.createObjectURL(dataBlob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `baantk-report-${type}-${new Date().toISOString().split('T')[0]}.json`;
-            link.click();
-            
-            URL.revokeObjectURL(url);
-            showAlert(`ส่งออกรายงาน${type}เรียบร้อยแล้ว`, 'success');
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
         async function approveBorrower(id) {
@@ -1145,6 +1178,49 @@
         function viewBorrower(id) {
             const borrower = borrowersData.find(b => b.id === id);
             if (borrower) {
+                // สร้าง HTML สำหรับรูปภาพ
+                let imagesHtml = '';
+                
+                // รูปบัตรประชาชน
+                if (borrower.idCardImage) {
+                    imagesHtml += `
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">รูปบัตรประชาชน</label>
+                            <div class="border rounded-lg p-2">
+                                <img src="${borrower.idCardImage}" alt="ID Card" class="max-w-full h-48 object-contain rounded mx-auto">
+                                <div class="mt-2 text-center">
+                                    <button onclick="downloadImage('${borrower.idCardImage}', '${borrower.firstName}_${borrower.lastName}_IDCard.jpg')" 
+                                            class="text-blue-600 hover:text-blue-800 text-sm">
+                                        <i class="fas fa-download mr-1"></i>ดาวน์โหลด
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // รูปถ่ายผู้กู้
+                if (borrower.selfieImage) {
+                    imagesHtml += `
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">รูปถ่ายผู้กู้</label>
+                            <div class="border rounded-lg p-2">
+                                <img src="${borrower.selfieImage}" alt="Selfie" class="max-w-full h-48 object-contain rounded mx-auto">
+                                <div class="mt-2 text-center">
+                                    <button onclick="downloadImage('${borrower.selfieImage}', '${borrower.firstName}_${borrower.lastName}_Selfie.jpg')" 
+                                            class="text-blue-600 hover:text-blue-800 text-sm">
+                                        <i class="fas fa-download mr-1"></i>ดาวน์โหลด
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (!imagesHtml) {
+                    imagesHtml = '<p class="text-gray-500 text-sm">ไม่มีรูปภาพ</p>';
+                }
+                
                 document.getElementById('borrowerDetails').innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -1164,12 +1240,16 @@
                             <p class="mt-1 text-sm text-gray-900">${borrower.idCard}</p>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">ที่อยู่</label>
-                            <p class="mt-1 text-sm text-gray-900">${borrower.address}</p>
+                            <label class="block text-sm font-medium text-gray-700">ที่อยู่ตามบัตร</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.addressOnId || borrower.address}</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">ที่อยู่ปัจจุบัน</label>
+                            <p class="mt-1 text-sm text-gray-900">${borrower.currentAddress || borrower.address}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">จำนวนเงินที่กู้</label>
-                            <p class="mt-1 text-sm text-gray-900">${(borrower.totalLoan || 0).toLocaleString()} บาท</p>
+                            <p class="mt-1 text-sm text-gray-900">${(borrower.totalLoan || borrower.amount || 0).toLocaleString()} บาท</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">รูปแบบการชำระ</label>
@@ -1184,8 +1264,30 @@
                             <p class="mt-1 text-sm text-gray-900">${getStatusText(borrower.status)}</p>
                         </div>
                     </div>
+                    
+                    <div class="mt-6 border-t pt-6">
+                        <h4 class="text-lg font-medium text-gray-900 mb-4">📷 รูปภาพ</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${imagesHtml}
+                        </div>
+                    </div>
                 `;
                 document.getElementById('borrowerModal').classList.remove('hidden');
+            }
+        }
+
+        function downloadImage(imageSrc, filename) {
+            try {
+                const link = document.createElement('a');
+                link.href = imageSrc;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showAlert('ดาวน์โหลดสำเร็จ', 'success');
+            } catch (error) {
+                console.error('Error downloading image:', error);
+                showAlert('ไม่สามารถดาวน์โหลดได้', 'error');
             }
         }
 
@@ -1251,6 +1353,15 @@
             link.href = url;
             link.download = '';
             link.click();
+        }
+
+        function viewContract(contractId) {
+            if (contractId) {
+                const contractUrl = `contract-sign.html?contractId=${contractId}`;
+                window.open(contractUrl, '_blank');
+            } else {
+                showAlert('ไม่พบข้อมูลสัญญา', 'error');
+            }
         }
 
         // Click outside to close modal

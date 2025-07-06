@@ -73,6 +73,60 @@ class ValidationService {
           "string.max": "ที่อยู่ต้องไม่เกิน 200 ตัวอักษร"
         }),
 
+      // ที่อยู่ตามบัตรประชาชน
+      addressOnId: joi.string()
+        .trim()
+        .min(10)
+        .max(200)
+        .optional()
+        .messages({
+          "string.min": "ที่อยู่ตามบัตรต้องมีอย่างน้อย 10 ตัวอักษร",
+          "string.max": "ที่อยู่ตามบัตรต้องไม่เกิน 200 ตัวอักษร"
+        }),
+
+      // ที่อยู่ปัจจุบัน
+      currentAddress: joi.string()
+        .trim()
+        .min(10)
+        .max(200)
+        .optional()
+        .messages({
+          "string.min": "ที่อยู่ปัจจุบันต้องมีอย่างน้อย 10 ตัวอักษร",
+          "string.max": "ที่อยู่ปัจจุบันต้องไม่เกิน 200 ตัวอักษร"
+        }),
+
+      // รูปบัตรประชาชน
+      idCardImage: joi.string()
+        .optional()
+        .custom((value, helpers) => {
+          if (value && !value.startsWith("data:image/")) {
+            return helpers.error("image.invalid");
+          }
+          return value;
+        })
+        .messages({
+          "image.invalid": "รูปบัตรประชาชนไม่ถูกต้อง"
+        }),
+
+      idCardImageName: joi.string().optional(),
+      idCardImageSize: joi.number().optional(),
+
+      // รูปถ่ายผู้กู้
+      selfieImage: joi.string()
+        .optional()
+        .custom((value, helpers) => {
+          if (value && !value.startsWith("data:image/")) {
+            return helpers.error("image.invalid");
+          }
+          return value;
+        })
+        .messages({
+          "image.invalid": "รูปถ่ายผู้กู้ไม่ถูกต้อง"
+        }),
+
+      selfieImageName: joi.string().optional(),
+      selfieImageSize: joi.number().optional(),
+
       amount: joi.number()
         .min(100)
         .max(50000)

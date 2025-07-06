@@ -7,7 +7,11 @@ class SecurityService {
   constructor() {
     this.jwtSecret = process.env.JWT_SECRET || "your-jwt-secret-key-here";
     this.encryptionKey = process.env.ENCRYPTION_KEY || "your-32-character-encryption-key";
-    this.adminToken = process.env.ADMIN_SECRET_TOKEN || process.env.ADMIN_TOKEN || "admin-secret-token-2024";
+    // อ่าน admin token จาก .env หลายรูปแบบ
+    this.adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_SECRET_TOKEN || process.env.ADMIN_PASSWORD || "admin123";
+
+    console.log(`🔐 Admin token configured from .env: ${this.adminToken ? "✅ SET" : "❌ NOT SET"}`);
+    console.log(`🔐 Using token: ${this.adminToken.substring(0, 3)}***`);
   }
 
   // Generate JWT token for admin

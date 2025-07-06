@@ -11,6 +11,7 @@ const securityService = require("./security");
 const validationService = require("./validation");
 const creditScoringService = require("./creditScoring");
 const governmentAPI = require("./governmentAPI");
+const ContractService = require("./contractService");
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -33,31 +34,73 @@ app.use(helmet({
   }
 }));
 
-// Enhanced CORS with stricter security
+// Enhanced CORS with less restrictive settings for debugging
 app.use(cors({
   origin: function(origin, callback) {
+    // Allow all origins during debugging
+    console.log("🌐 CORS Origin:", origin);
+
     const allowedOrigins = [
       "https://baan-tk.web.app",
       "https://baan-tk.firebaseapp.com",
       "https://liff.line.me",
       /^https:\/\/.*\.ngrok\.io$/,
       "http://localhost:3000",
-      "http://localhost:8080"
+      "http://localhost:8080",
+      "http://localhost:5000",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5000"
     ];
 
-    if (!origin || allowedOrigins.some((allowed) =>
+    // Allow all origins if no origin (Postman, curl, etc)
+    if (!origin) {
+      console.log("✅ CORS: No origin - allowed");
+      return callback(null, true);
+    }
+
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.some((allowed) =>
       typeof allowed === "string" ? allowed === origin : allowed.test(origin)
-    )) {
+    );
+
+    if (isAllowed) {
+      console.log("✅ CORS: Origin allowed -", origin);
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      console.log("❌ CORS: Origin blocked -", origin);
+      // For debugging, allow all origins temporarily
+      console.log("🔧 DEBUG: Allowing blocked origin for testing");
+      callback(null, true); // Change this to callback(new Error("Not allowed by CORS")); for production
     }
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-API-Key"],
-  optionsSuccessStatus: 200
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-API-Key", "Origin", "Accept"],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 }));
+
+// Handle preflight OPTIONS requests explicitly
+app.options("*", (req, res) => {
+  console.log("🔧 OPTIONS request received for:", req.path);
+  res.header("Access-Control-Allow-Origin", req.get("Origin") || "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,X-API-Key,Origin,Accept");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.status(200).send();
+});
+
+// Additional CORS headers middleware
+app.use((req, res, next) => {
+  const origin = req.get("Origin");
+  if (origin) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,X-API-Key,Origin,Accept");
+  next();
+});
 
 // Rate limiting with dynamic configuration
 const defaultLimiter = rateLimit({
@@ -433,10 +476,42 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
     const userData = validation.data;
     console.log(`✅ Input validation passed [${requestId}]:`, userData.firstName, userData.lastName);
 
-    // 🔍 ตรวจสอบรูปแบบบัตรประชาชน
-    console.log(`🔍 Verifying ID Card format [${requestId}]`);
-    
-    const idCardValidation = governmentAPI.validateIDCardBasic(userData.idCard);
+    // 🔍 Enhanced image handling - support both combined and separate images
+    const imageData = {};
+
+    // Handle combined images or separate images
+    if (req.body.idCardImage) {
+      imageData.idCardImage = req.body.idCardImage;
+      imageData.idCardImageName = req.body.idCardImageName || "id_card.jpg";
+      imageData.idCardImageSize = req.body.idCardImageSize || 0;
+    }
+
+    if (req.body.selfieImage) {
+      imageData.selfieImage = req.body.selfieImage;
+      imageData.selfieImageName = req.body.selfieImageName || "selfie.jpg";
+      imageData.selfieImageSize = req.body.selfieImageSize || 0;
+    }
+
+    // If no separate images but has combined images, use the first as ID card and second as selfie
+    if (!imageData.idCardImage && !imageData.selfieImage) {
+      console.log(`⚠️ No image data provided [${requestId}]`);
+      return res.status(400).json({
+        error: "No images provided",
+        message: "กรุณาอัปโหลดรูปบัตรประชาชนและรูปถ่ายของคุณ"
+      });
+    }
+
+    console.log(`📷 Image processing [${requestId}]:`, {
+      hasIdCard: !!imageData.idCardImage,
+      hasSelfie: !!imageData.selfieImage,
+      idCardSize: imageData.idCardImageSize,
+      selfieSize: imageData.selfieImageSize
+    });
+
+    // 🔍 ตรวจสอบรูปแบบบัตรประชาชนผ่าน API
+    console.log(`🔍 Verifying ID Card via API [${requestId}]`);
+
+    const idCardValidation = await governmentAPI.validateIDCardBasic(userData.idCard);
     if (!idCardValidation.isValid) {
       console.log(`❌ ID Card validation failed [${requestId}]:`, idCardValidation.errors);
 
@@ -477,6 +552,7 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
     // เพิ่มข้อมูลการตรวจสอบเข้ากับข้อมูลผู้ใช้
     const enhancedUserData = {
       ...userData,
+      ...imageData, // รวมข้อมูลรูปภาพ
       idCardVerified: true,
       idCardStatus: cardVerification.status,
       verificationTimestamp: new Date().toISOString()
@@ -536,8 +612,8 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
     // Auto-approval logic with enhanced criteria
     const autoApproval = determineAutoApproval(creditAssessment, enhancedUserData, loanTerms);
 
-    // Create comprehensive borrower record
-    const borrowerData = createBorrowerRecord(enhancedUserData, creditAssessment, loanTerms, autoApproval, req, requestId);
+    // Create comprehensive borrower record with image data
+    const borrowerData = createBorrowerRecord(enhancedUserData, creditAssessment, loanTerms, autoApproval, req, requestId, imageData);
 
     // Save to Firestore with transaction
     const docRef = await db.collection("borrowers").add(borrowerData);
@@ -876,35 +952,47 @@ app.post("/api/admin/approve", authenticateAdmin, async (req, res) => {
       reviewedBy: req.admin.id || "admin"
     };
 
-    // If approved, set additional fields
+    // If approved, set additional fields and create contract
     if (action === "approve") {
       updateData.approvedAt = now;
-      updateData.approvedAmount = borrowerData.requestedAmount;
-      updateData.disbursementStatus = "pending";
+      updateData.approvedAmount = borrowerData.amount || borrowerData.requestedAmount;
+      updateData.disbursementStatus = "pending_contract";
+
+      // Generate and save contract
+      const loanTerms = borrowerData.loanTerms || calculateLoanTerms(borrowerData, borrowerData.creditAssessment);
+      const settings = await getSystemSettings();
+
+      const contractData = ContractService.generateContract(borrowerData, loanTerms, settings);
+      const contractId = await ContractService.saveContract(contractData, borrowerId);
+
+      updateData.contractId = contractId;
+      updateData.contractGenerated = true;
     }
 
     // Update borrower record
     await borrowerRef.update(updateData);
 
     // Log admin action with detailed information
-    await Promise.all([
-      db.collection("adminLogs").add({
-        type: "loan_review",
-        action: action,
-        borrowerId: borrowerId,
-        borrowerName: `${borrowerData.firstName} ${borrowerData.lastName}`,
-        amount: borrowerData.requestedAmount,
-        creditScore: borrowerData.creditScore,
-        previousStatus: borrowerData.status,
-        newStatus: status,
-        notes: notes,
-        adminId: req.admin.id || "admin",
-        timestamp: now
-      }),
+    await db.collection("adminLogs").add({
+      type: "loan_review",
+      action: action,
+      borrowerId: borrowerId,
+      borrowerName: `${borrowerData.firstName} ${borrowerData.lastName}`,
+      amount: borrowerData.requestedAmount || borrowerData.amount,
+      creditScore: borrowerData.creditScore,
+      previousStatus: borrowerData.status,
+      newStatus: status,
+      notes: notes,
+      adminId: req.admin.id || "admin",
+      timestamp: now
+    });
 
-      // Send notification to borrower
-      sendStatusUpdateNotification(borrowerData, status, notes)
-    ]);
+    // Send notification with contract link if approved
+    if (action === "approve") {
+      await sendApprovalNotificationWithContract(borrowerData, updateData.contractId);
+    } else {
+      await sendStatusUpdateNotification(borrowerData, status, notes);
+    }
 
     console.log(`✅ Loan ${action}d:`, {
       borrowerId,
@@ -963,6 +1051,39 @@ async function sendStatusUpdateNotification(borrowerData, status, notes) {
     return { success: true };
   } catch (error) {
     console.error("Failed to send status notification:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Send approval notification with contract
+async function sendApprovalNotificationWithContract(borrowerData, contractId) {
+  try {
+    const contractUrl = `https://baan-tk.web.app/contract-sign.html?contractId=${contractId}`;
+    const message = `🎉 ยินดีด้วย! เงินกู้ของคุณได้รับการอนุมัติแล้ว
+
+จำนวนเงิน: ${(borrowerData.amount || borrowerData.requestedAmount).toLocaleString()} บาท
+
+📄 กรุณาลงนามในสัญญาอิเล็กทรอนิกส์:
+${contractUrl}
+
+⚠️ สำคัญ: กรุณาลงนามภายใน 24 ชั่วโมง เพื่อให้เงินถูกโอนเข้าบัญชี`;
+
+    const notificationData = {
+      type: "loan_approved_with_contract",
+      borrowerId: borrowerData.id,
+      recipient: borrowerData.userId,
+      message: message,
+      contractId: contractId,
+      contractUrl: contractUrl,
+      status: "pending",
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection("notifications").add(notificationData);
+    console.log(`📧 Approval notification sent with contract: ${contractId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send approval notification:", error);
     return { success: false, error: error.message };
   }
 }
@@ -1354,10 +1475,176 @@ app.delete("/api/admin/blacklist/:id", authenticateAdmin, async (req, res) => {
   }
 });
 
+// Get system settings
+async function getSystemSettings() {
+  try {
+    const settingsDoc = await db.collection("settings").doc("loan").get();
+    if (settingsDoc.exists) {
+      return settingsDoc.data();
+    }
+
+    // Default settings
+    return {
+      dailyInterestRate: 0.20,
+      weeklyInterestRate: 0.15,
+      monthlyInterestRate: 0.10,
+      maxLoanAmount: 50000,
+      minLoanAmount: 1000
+    };
+  } catch (error) {
+    console.error("Error getting settings:", error);
+    return {
+      dailyInterestRate: 0.20,
+      weeklyInterestRate: 0.15,
+      monthlyInterestRate: 0.10,
+      maxLoanAmount: 50000,
+      minLoanAmount: 1000
+    };
+  }
+}
+
+// Contract API endpoints
+app.get("/api/contract/:contractId", authenticateUser, async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const userId = req.user.userId;
+
+    const contractDoc = await db.collection("contracts").doc(contractId).get();
+
+    if (!contractDoc.exists) {
+      return res.status(404).json({
+        error: "Contract not found",
+        message: "ไม่พบสัญญา"
+      });
+    }
+
+    const contractData = contractDoc.data();
+
+    // Verify ownership
+    const borrowerDoc = await db.collection("borrowers").doc(contractData.borrowerId).get();
+    if (!borrowerDoc.exists || borrowerDoc.data().userId !== userId) {
+      return res.status(403).json({
+        error: "Access denied",
+        message: "ไม่มีสิทธิ์เข้าถึงสัญญานี้"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: contractData
+    });
+  } catch (error) {
+    console.error("Error fetching contract:", error);
+    res.status(500).json({
+      error: "Failed to fetch contract",
+      message: "ไม่สามารถโหลดสัญญาได้"
+    });
+  }
+});
+
+app.post("/api/contract/sign", authenticateUser, async (req, res) => {
+  try {
+    const { contractId, signatureData, timestamp } = req.body;
+    const userId = req.user.userId;
+
+    // Validate contract ownership
+    const contractDoc = await db.collection("contracts").doc(contractId).get();
+    if (!contractDoc.exists) {
+      return res.status(404).json({
+        error: "Contract not found",
+        message: "ไม่พบสัญญา"
+      });
+    }
+
+    const contractData = contractDoc.data();
+    const borrowerDoc = await db.collection("borrowers").doc(contractData.borrowerId).get();
+
+    if (!borrowerDoc.exists || borrowerDoc.data().userId !== userId) {
+      return res.status(403).json({
+        error: "Access denied",
+        message: "ไม่มีสิทธิ์ลงนามสัญญานี้"
+      });
+    }
+
+    // Sign contract
+    await ContractService.signContract(contractId, contractData.borrowerId, {
+      signature: signatureData,
+      timestamp,
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent")
+    }, req);
+
+    // Update borrower status
+    await db.collection("borrowers").doc(contractData.borrowerId).update({
+      status: "contract_signed",
+      disbursementStatus: "approved",
+      contractSignedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Log signing event
+    await db.collection("contractLogs").add({
+      type: "contract_signed",
+      contractId,
+      borrowerId: contractData.borrowerId,
+      userId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent")
+    });
+
+    res.json({
+      success: true,
+      message: "ลงนามสัญญาสำเร็จ",
+      data: {
+        contractId,
+        signedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Error signing contract:", error);
+    res.status(500).json({
+      error: "Failed to sign contract",
+      message: "ไม่สามารถลงนามสัญญาได้"
+    });
+  }
+});
+
+// Simple authentication middleware for users
+async function authenticateUser(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "กรุณาเข้าสู่ระบบ"
+      });
+    }
+
+    const userId = authHeader.substring(7); // Remove 'Bearer '
+
+    if (!userId) {
+      return res.status(401).json({
+        error: "Invalid token",
+        message: "Token ไม่ถูกต้อง"
+      });
+    }
+
+    req.user = { userId };
+    next();
+  } catch (error) {
+    console.error("Auth error:", error);
+    res.status(401).json({
+      error: "Authentication failed",
+      message: "การยืนยันตัวตนล้มเหลว"
+    });
+  }
+}
+
 // Helper Functions for Enhanced Loan Processing
 
 /**
- * เปรียบเทียบข้อมูลที่ผู้ใช้กรอกกับข้อมูลจากทะเบียนราษฎร
+ * เปรียบเทียบข้อมูลที่ผู้ใช้กรอกับข้อมูลจากทะเบียนราษฎร
  */
 function compareUserDataWithGovernmentData(userData, citizenData) {
   const discrepancies = [];
@@ -1416,17 +1703,17 @@ function calculateLoanTerms(userData, creditAssessment) {
   // คำนวณระยะเวลาผ่อนชำระ
   let termMonths;
   switch (userData.frequency) {
-    case "daily":
-      termMonths = 1; // 30 วัน
-      break;
-    case "weekly":
-      termMonths = 3; // 12 สัปดาห์
-      break;
-    case "monthly":
-      termMonths = 12; // 12 เดือน
-      break;
-    default:
-      termMonths = 6;
+  case "daily":
+    termMonths = 1; // 30 วัน
+    break;
+  case "weekly":
+    termMonths = 3; // 12 สัปดาห์
+    break;
+  case "monthly":
+    termMonths = 12; // 12 เดือน
+    break;
+  default:
+    termMonths = 6;
   }
 
   const principal = userData.amount;
@@ -1436,23 +1723,23 @@ function calculateLoanTerms(userData, creditAssessment) {
   // คำนวณงวดการผ่อนชำระ
   let installments;
   let installmentAmount;
-  
+
   switch (userData.frequency) {
-    case "daily":
-      installments = 30;
-      installmentAmount = Math.ceil(totalWithInterest / installments);
-      break;
-    case "weekly":
-      installments = 12;
-      installmentAmount = Math.ceil(totalWithInterest / installments);
-      break;
-    case "monthly":
-      installments = termMonths;
-      installmentAmount = Math.ceil(totalWithInterest / installments);
-      break;
-    default:
-      installments = 6;
-      installmentAmount = Math.ceil(totalWithInterest / installments);
+  case "daily":
+    installments = 30;
+    installmentAmount = Math.ceil(totalWithInterest / installments);
+    break;
+  case "weekly":
+    installments = 12;
+    installmentAmount = Math.ceil(totalWithInterest / installments);
+    break;
+  case "monthly":
+    installments = termMonths;
+    installmentAmount = Math.ceil(totalWithInterest / installments);
+    break;
+  default:
+    installments = 6;
+    installmentAmount = Math.ceil(totalWithInterest / installments);
   }
 
   // คำนวณวันครบกำหนด
@@ -1513,12 +1800,12 @@ function determineAutoApproval(creditAssessment, userData, loanTerms) {
 /**
  * สร้าง record ของผู้กู้เงิน
  */
-function createBorrowerRecord(userData, creditAssessment, loanTerms, autoApproval, req, requestId) {
+function createBorrowerRecord(userData, creditAssessment, loanTerms, autoApproval, req, requestId, imageData = {}) {
   return {
     // ข้อมูลพื้นฐาน
     userId: userData.userId,
     requestId: requestId,
-    
+
     // ข้อมูลส่วนตัวจากทะเบียนราษฎร
     titleName: userData.titleName,
     firstName: userData.officialFirstName || userData.firstName,
@@ -1528,37 +1815,61 @@ function createBorrowerRecord(userData, creditAssessment, loanTerms, autoApprova
     gender: userData.gender,
     nationality: userData.nationality,
     religion: userData.religion,
-    
+
     // ที่อยู่
     address: userData.address, // ที่อยู่ที่กรอก
+    addressOnId: userData.addressOnId, // ที่อยู่ตามบัตร
+    currentAddress: userData.currentAddress, // ที่อยู่ปัจจุบัน
     officialAddress: userData.officialAddress, // ที่อยู่จากทะเบียนราษฎร
     addressDetails: userData.addressDetails,
-    
+
     // ข้อมูลสินเชื่อ
     amount: userData.amount,
     frequency: userData.frequency,
     loanTerms: loanTerms,
-    
+
     // ประเมินความเสี่ยง
     creditAssessment: creditAssessment,
     creditHistory: userData.creditHistory,
     autoApproval: autoApproval,
-    
+
     // สถานะ
     status: autoApproval.status,
     paid: 0,
-    
+
     // ข้อมูลบัตรประชาชน
     idCardStatus: userData.idCardStatus,
     idCardIssueDate: userData.idCardIssueDate,
     idCardExpiryDate: userData.idCardExpiryDate,
-    
+
+    // 📷 รูปภาพ (รองรับทั้งแบบแยกและรวม)
+    ...(imageData.idCardImage && {
+      idCardImage: imageData.idCardImage,
+      idCardImageName: imageData.idCardImageName,
+      idCardImageSize: imageData.idCardImageSize,
+      hasIdCardImage: true
+    }),
+    ...(imageData.selfieImage && {
+      selfieImage: imageData.selfieImage,
+      selfieImageName: imageData.selfieImageName,
+      selfieImageSize: imageData.selfieImageSize,
+      hasSelfieImage: true
+    }),
+
+    // เก็บข้อมูลรูปภาพแยกต่างหากสำหรับ backward compatibility
+    idCardImage: imageData.idCardImage || userData.idCardImage,
+    idCardImageName: imageData.idCardImageName || userData.idCardImageName,
+    idCardImageSize: imageData.idCardImageSize || userData.idCardImageSize,
+    selfieImage: imageData.selfieImage || userData.selfieImage,
+    selfieImageName: imageData.selfieImageName || userData.selfieImageName,
+    selfieImageSize: imageData.selfieImageSize || userData.selfieImageSize,
+
     // ข้อมูลระบบ
     dataSource: userData.dataSource,
     verificationTimestamp: userData.verificationTimestamp,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    
+
     // ข้อมูล Request
     requestInfo: {
       ip: req.ip,
@@ -1575,7 +1886,7 @@ async function sendApprovalNotification(userData, loanTerms, borrowerId) {
   try {
     // TODO: ส่งการแจ้งเตือนผ่าน LINE
     console.log(`📧 Sending approval notification for borrower: ${borrowerId}`);
-    
+
     // ในอนาคตจะเพิ่มการส่ง LINE message
     return true;
   } catch (error) {
@@ -1584,4 +1895,6 @@ async function sendApprovalNotification(userData, loanTerms, borrowerId) {
   }
 }
 
-// ...existing code...
+// Export the webhook function
+console.log("✅ simple.js loaded successfully");
+exports.webhook = functions.https.onRequest(app);
