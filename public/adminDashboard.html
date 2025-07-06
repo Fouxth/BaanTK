@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - BaanTK</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { 
@@ -147,15 +146,110 @@
                 </div>
             </div>
 
-            <!-- Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Analytics Cards -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Loan Status Analytics -->
                 <div class="card bg-white p-6 rounded-lg shadow">
-                    <h3 class="text-lg font-semibold mb-4">สถิติการกู้เงิน</h3>
-                    <canvas id="loanChart"></canvas>
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-chart-pie mr-2 text-blue-600"></i>สถิติสถานะคำขอ
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-yellow-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-600">รอพิจารณา</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="pendingCount">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-yellow-500 h-2 rounded-full" id="pendingBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-600">อนุมัติ</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="approvedCount">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-green-500 h-2 rounded-full" id="approvedBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-600">ปฏิเสธ</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="rejectedCount">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-red-500 h-2 rounded-full" id="rejectedBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Loan Amount Analytics -->
                 <div class="card bg-white p-6 rounded-lg shadow">
-                    <h3 class="text-lg font-semibold mb-4">สถานะคำขอ</h3>
-                    <canvas id="statusChart"></canvas>
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-coins mr-2 text-green-600"></i>สถิติจำนวนเงินกู้
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">≤ 5,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range1Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-400 h-2 rounded-full" id="range1Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">5,001 - 15,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range2Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-500 h-2 rounded-full" id="range2Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">15,001 - 50,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range3Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-600 h-2 rounded-full" id="range3Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">> 50,000 บาท</span>
+                            <div class="text-right">
+                                <span class="text-sm font-medium" id="range4Count">0</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-blue-800 h-2 rounded-full" id="range4Bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="card bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-semibold mb-4">
+                    <i class="fas fa-clock mr-2 text-purple-600"></i>กิจกรรมล่าสุด
+                </h3>
+                <div class="space-y-3" id="activityFeed">
+                    <!-- Dynamic content will be loaded here -->
+                    <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <div class="w-2 h-2 bg-gray-400 rounded-full mr-3"></div>
+                        <span class="text-sm text-gray-600">ไม่มีกิจกรรมล่าสุด</span>
+                    </div>
                 </div>
             </div>
         </section>
@@ -223,14 +317,165 @@
 
         <!-- Reports Section -->
         <section id="reports" class="p-6 hidden container-wrapper">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Report Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div class="card bg-white p-6 rounded-lg shadow">
-                    <h3 class="text-lg font-semibold mb-4">รายงานรายวัน</h3>
-                    <canvas id="dailyChart"></canvas>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รายงานวันนี้</p>
+                            <p class="text-2xl font-bold text-blue-600" id="todayReport">0</p>
+                            <p class="text-xs text-gray-500">คำขอใหม่</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-calendar-day text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
                 </div>
                 <div class="card bg-white p-6 rounded-lg shadow">
-                    <h3 class="text-lg font-semibold mb-4">รายงานรายเดือน</h3>
-                    <canvas id="monthlyChart"></canvas>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รายงานสัปดาห์นี้</p>
+                            <p class="text-2xl font-bold text-green-600" id="weekReport">0</p>
+                            <p class="text-xs text-gray-500">คำขอทั้งหมด</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <i class="fas fa-calendar-week text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">รายงานเดือนนี้</p>
+                            <p class="text-2xl font-bold text-purple-600" id="monthReport">0</p>
+                            <p class="text-xs text-gray-500">ยอดรวม</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-full">
+                            <i class="fas fa-calendar-month text-purple-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-percentage mr-2 text-orange-600"></i>อัตราการอนุมัติ
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-orange-600" id="approvalRate">0%</div>
+                            <p class="text-sm text-gray-600">อัตราการอนุมัติโดยเฉลี่ย</p>
+                        </div>
+                        <div class="bg-gray-200 rounded-full h-4">
+                            <div class="bg-orange-600 h-4 rounded-full transition-all duration-300" id="approvalRateBar" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>0%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-money-bill-wave mr-2 text-emerald-600"></i>ยอดเงินกู้เฉลี่ย
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-emerald-600" id="avgLoanAmount">0</div>
+                            <p class="text-sm text-gray-600">บาท/คำขอ</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <div class="text-lg font-semibold text-blue-600" id="minLoan">0</div>
+                                <div class="text-xs text-gray-500">ต่ำสุด</div>
+                            </div>
+                            <div>
+                                <div class="text-lg font-semibold text-green-600" id="maxLoan">0</div>
+                                <div class="text-xs text-gray-500">สูงสุด</div>
+                            </div>
+                            <div>
+                                <div class="text-lg font-semibold text-purple-600" id="totalLoans">0</div>
+                                <div class="text-xs text-gray-500">ทั้งหมด</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed & Summary -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Recent Activity -->
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-clock mr-2 text-blue-600"></i>กิจกรรมล่าสุด
+                    </h3>
+                    <div id="activityFeed" class="space-y-3 max-h-64 overflow-y-auto">
+                        <!-- Activity items will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Quick Summary -->
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-chart-line mr-2 text-green-600"></i>สรุปข้อมูล
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">คำขอที่รออนุมัติ</span>
+                            <span class="text-lg font-bold text-orange-600" id="summaryPending">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">อนุมัติแล้ววันนี้</span>
+                            <span class="text-lg font-bold text-green-600" id="summaryApprovedToday">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">ยอดเงินกู้รวมวันนี้</span>
+                            <span class="text-lg font-bold text-blue-600" id="summaryTotalToday">0 บาท</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">เฉลี่ยต่อคำขอ</span>
+                            <span class="text-lg font-bold text-purple-600" id="summaryAvgAmount">0 บาท</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Options -->
+            <div class="mt-6">
+                <div class="card bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">
+                        <i class="fas fa-download mr-2 text-indigo-600"></i>ส่งออกรายงาน
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('daily')">
+                            <div class="text-center">
+                                <i class="fas fa-file-excel text-green-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">รายวัน</div>
+                            </div>
+                        </button>
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('weekly')">
+                            <div class="text-center">
+                                <i class="fas fa-file-csv text-blue-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">รายสัปดาห์</div>
+                            </div>
+                        </button>
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('monthly')">
+                            <div class="text-center">
+                                <i class="fas fa-file-pdf text-red-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">รายเดือน</div>
+                            </div>
+                        </button>
+                        <button class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all" onclick="exportReport('custom')">
+                            <div class="text-center">
+                                <i class="fas fa-file-alt text-purple-600 text-2xl mb-2"></i>
+                                <div class="text-sm font-medium">กำหนดเอง</div>
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -299,7 +544,7 @@
             updateCurrentTime();
             setInterval(updateCurrentTime, 1000);
             loadAllData();
-            initCharts();
+            initAnalytics();
             
             // Mobile menu toggle
             document.getElementById('menuBtn').addEventListener('click', function() {
@@ -344,7 +589,7 @@
             if (sectionName === 'borrowers') loadBorrowersTable();
             else if (sectionName === 'slips') loadSlipsTable();
             else if (sectionName === 'documents') loadDocumentsGrid();
-            else if (sectionName === 'reports') loadReportsCharts();
+            else if (sectionName === 'reports') updateReportsData();
             
             // Close mobile menu
             document.getElementById('sidebar').classList.remove('active');
@@ -365,6 +610,7 @@
                 documentsData = await documentsResponse.json();
                 
                 updateDashboardStats();
+                updateReportsData();
                 
             } catch (error) {
                 console.error('Error loading data:', error);
@@ -387,6 +633,51 @@
             document.getElementById('pendingBorrowers').textContent = pendingBorrowers;
             document.getElementById('totalLoan').textContent = totalLoan.toLocaleString() + ' บาท';
             document.getElementById('outstandingAmount').textContent = outstandingAmount.toLocaleString() + ' บาท';
+            
+            // Update analytics
+            updateAnalytics();
+        }
+
+        function updateAnalytics() {
+            // Count by status
+            const pendingCount = borrowersData.filter(b => b.status === 'pending').length;
+            const approvedCount = borrowersData.filter(b => b.status === 'approved').length;
+            const rejectedCount = borrowersData.filter(b => b.status === 'rejected').length;
+            const total = borrowersData.length || 1; // Prevent division by zero
+
+            // Calculate percentages
+            const pendingPercent = Math.round((pendingCount / total) * 100);
+            const approvedPercent = Math.round((approvedCount / total) * 100);
+            const rejectedPercent = Math.round((rejectedCount / total) * 100);
+
+            // Update status analytics
+            const statusElements = {
+                pendingCount: pendingCount,
+                approvedCount: approvedCount,
+                rejectedCount: rejectedCount
+            };
+
+            Object.entries(statusElements).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = value;
+            });
+
+            // Update progress bars with animation
+            setTimeout(() => {
+                const progressBars = {
+                    pendingBar: pendingPercent,
+                    approvedBar: approvedPercent,
+                    rejectedBar: rejectedPercent
+                };
+
+                Object.entries(progressBars).forEach(([id, percent]) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.style.width = `${percent}%`;
+                        element.style.transition = 'width 0.8s ease-in-out';
+                    }
+                });
+            }, 100);
         }
 
         function loadBorrowersTable() {
@@ -477,55 +768,324 @@
             });
         }
 
-        function initCharts() {
-            // Loan Chart
-            const loanCtx = document.getElementById('loanChart').getContext('2d');
-            new Chart(loanCtx, {
-                type: 'line',
-                data: {
-                    labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.'],
-                    datasets: [{
-                        label: 'ยอดกู้ (บาท)',
-                        data: [50000, 75000, 100000, 125000, 150000, 175000, 200000],
-                        borderColor: 'rgb(34, 197, 94)',
-                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                        }
-                    }
-                }
+        function initAnalytics() {
+            // Initialize analytics with sample data
+            updateAnalytics();
+            updateActivityFeed();
+        }
+
+        function updateAnalytics() {
+            if (!borrowersData || borrowersData.length === 0) {
+                console.log('No borrowers data available for analytics');
+                return;
+            }
+
+            // Calculate status statistics
+            const statusCounts = {
+                pending: borrowersData.filter(b => b.status === 'pending').length,
+                approved: borrowersData.filter(b => b.status === 'approved').length,
+                rejected: borrowersData.filter(b => b.status === 'rejected').length
+            };
+
+            const total = statusCounts.pending + statusCounts.approved + statusCounts.rejected;
+
+            // Update status analytics
+            updateProgressBar('pending', statusCounts.pending, total);
+            updateProgressBar('approved', statusCounts.approved, total);
+            updateProgressBar('rejected', statusCounts.rejected, total);
+
+            // Calculate loan amount ranges
+            const ranges = {
+                range1: borrowersData.filter(b => b.amount <= 5000).length,
+                range2: borrowersData.filter(b => b.amount > 5000 && b.amount <= 15000).length,
+                range3: borrowersData.filter(b => b.amount > 15000 && b.amount <= 50000).length,
+                range4: borrowersData.filter(b => b.amount > 50000).length
+            };
+
+            // Update amount range analytics
+            updateProgressBar('range1', ranges.range1, total);
+            updateProgressBar('range2', ranges.range2, total);
+            updateProgressBar('range3', ranges.range3, total);
+            updateProgressBar('range4', ranges.range4, total);
+
+            // Update reports data
+            updateReportsData();
+        }
+
+        function updateProgressBar(type, count, total) {
+            const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+            
+            const countElement = document.getElementById(`${type}Count`);
+            const barElement = document.getElementById(`${type}Bar`);
+            
+            if (countElement) countElement.textContent = count;
+            if (barElement) {
+                barElement.style.width = `${percentage}%`;
+                // Add smooth transition
+                barElement.style.transition = 'width 0.5s ease-in-out';
+            }
+        }
+
+        function updateActivityFeed() {
+            const activityFeed = document.getElementById('activityFeed');
+            if (!activityFeed) return;
+
+            // Sample recent activities
+            const recentActivities = [
+                { time: '2 นาทีที่แล้ว', action: 'คำขอใหม่ถูกส่ง', user: 'สมชาย ใจดี', type: 'new' },
+                { time: '15 นาทีที่แล้ว', action: 'อนุมัติคำขอ', user: 'สมหญิง ดีมาก', type: 'approved' },
+                { time: '1 ชั่วโมงที่แล้ว', action: 'ปฏิเสธคำขอ', user: 'สมศักดิ์ มีปัญหา', type: 'rejected' },
+                { time: '2 ชั่วโมงที่แล้ว', action: 'ชำระเงินงวดที่ 1', user: 'สมใจ รักดี', type: 'payment' }
+            ];
+
+            const activityIcons = {
+                new: { icon: 'fas fa-plus-circle', color: 'text-blue-600', bg: 'bg-blue-100' },
+                approved: { icon: 'fas fa-check-circle', color: 'text-green-600', bg: 'bg-green-100' },
+                rejected: { icon: 'fas fa-times-circle', color: 'text-red-600', bg: 'bg-red-100' },
+                payment: { icon: 'fas fa-money-bill-wave', color: 'text-purple-600', bg: 'bg-purple-100' }
+            };
+
+            activityFeed.innerHTML = recentActivities.map(activity => {
+                const iconInfo = activityIcons[activity.type];
+                return `
+                    <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <div class="${iconInfo.bg} p-2 rounded-full mr-3">
+                            <i class="${iconInfo.icon} ${iconInfo.color}"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-medium">${activity.action}</div>
+                            <div class="text-xs text-gray-600">${activity.user} • ${activity.time}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateReportsData() {
+            // Calculate today's, this week's, and this month's data
+            const today = new Date();
+            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const weekStart = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+            const todayCount = borrowersData.filter(b => {
+                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
+                return createdAt >= todayStart;
+            }).length;
+
+            const weekCount = borrowersData.filter(b => {
+                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
+                return createdAt >= weekStart;
+            }).length;
+
+            const monthCount = borrowersData.filter(b => {
+                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
+                return createdAt >= monthStart;
+            }).length;
+
+            // Update report cards
+            const elements = {
+                todayReport: todayCount,
+                weekReport: weekCount,
+                monthReport: monthCount
+            };
+
+            Object.entries(elements).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = value;
             });
 
-            // Status Chart
-            const statusCtx = document.getElementById('statusChart').getContext('2d');
-            new Chart(statusCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['อนุมัติ', 'รออนุมัติ', 'ปฏิเสธ'],
-                    datasets: [{
-                        data: [65, 25, 10],
-                        backgroundColor: [
-                            'rgb(34, 197, 94)',
-                            'rgb(251, 146, 60)',
-                            'rgb(239, 68, 68)'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                        }
+            // Calculate performance metrics
+            updatePerformanceMetrics();
+            
+            // Update activity feed and summary
+            updateActivityFeed();
+            updateSummaryData();
+        }
+
+        function updateActivityFeed() {
+            const activityFeed = document.getElementById('activityFeed');
+            if (!activityFeed) return;
+
+            // Get recent activities (last 10)
+            const recentActivities = borrowersData
+                .sort((a, b) => {
+                    const dateA = new Date(a.createdAt?.seconds * 1000 || a.createdAt || 0);
+                    const dateB = new Date(b.createdAt?.seconds * 1000 || b.createdAt || 0);
+                    return dateB - dateA;
+                })
+                .slice(0, 10);
+
+            activityFeed.innerHTML = '';
+
+            if (recentActivities.length === 0) {
+                activityFeed.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="fas fa-inbox text-4xl mb-2"></i>
+                        <p>ไม่มีกิจกรรมล่าสุด</p>
+                    </div>
+                `;
+                return;
+            }
+
+            recentActivities.forEach(activity => {
+                const createdAt = new Date(activity.createdAt?.seconds * 1000 || activity.createdAt);
+                const timeAgo = getTimeAgo(createdAt);
+                
+                const statusIcon = {
+                    'pending': '<i class="fas fa-clock text-orange-500"></i>',
+                    'approved': '<i class="fas fa-check-circle text-green-500"></i>',
+                    'rejected': '<i class="fas fa-times-circle text-red-500"></i>'
+                }[activity.status] || '<i class="fas fa-file text-gray-500"></i>';
+
+                const statusText = {
+                    'pending': 'ยื่นคำขอใหม่',
+                    'approved': 'อนุมัติคำขอ',
+                    'rejected': 'ปฏิเสธคำขอ'
+                }[activity.status] || 'อัพเดตสถานะ';
+
+                const activityItem = document.createElement('div');
+                activityItem.className = 'flex items-center p-3 border-l-4 border-gray-200 bg-gray-50 rounded-r-lg hover:bg-gray-100 transition-colors';
+                
+                activityItem.innerHTML = `
+                    <div class="mr-3">${statusIcon}</div>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium text-gray-900">
+                            ${activity.firstName} ${activity.lastName} ${statusText}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            ${(activity.amount || 0).toLocaleString()} บาท • ${timeAgo}
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-400">
+                        ${createdAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                `;
+
+                activityFeed.appendChild(activityItem);
+            });
+        }
+
+        function updateSummaryData() {
+            const today = new Date();
+            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+            // Calculate summary data
+            const pendingCount = borrowersData.filter(b => b.status === 'pending').length;
+            
+            const approvedToday = borrowersData.filter(b => {
+                const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
+                return b.status === 'approved' && createdAt >= todayStart;
+            }).length;
+
+            const totalAmountToday = borrowersData
+                .filter(b => {
+                    const createdAt = new Date(b.createdAt?.seconds * 1000 || b.createdAt);
+                    return createdAt >= todayStart;
+                })
+                .reduce((sum, b) => sum + (b.amount || 0), 0);
+
+            const avgAmount = borrowersData.length > 0 
+                ? Math.round(borrowersData.reduce((sum, b) => sum + (b.amount || 0), 0) / borrowersData.length)
+                : 0;
+
+            // Update summary elements
+            const summaryElements = {
+                summaryPending: pendingCount,
+                summaryApprovedToday: approvedToday,
+                summaryTotalToday: totalAmountToday.toLocaleString(),
+                summaryAvgAmount: avgAmount.toLocaleString()
+            };
+
+            Object.entries(summaryElements).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    if (id === 'summaryTotalToday' || id === 'summaryAvgAmount') {
+                        element.textContent = `${value} บาท`;
+                    } else {
+                        element.textContent = value;
                     }
                 }
             });
+        }
+
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+            
+            if (diffInMinutes < 1) return 'เมื่อสักครู่';
+            if (diffInMinutes < 60) return `${diffInMinutes} นาทีที่แล้ว`;
+            
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) return `${diffInHours} ชั่วโมงที่แล้ว`;
+            
+            const diffInDays = Math.floor(diffInHours / 24);
+            if (diffInDays < 7) return `${diffInDays} วันที่แล้ว`;
+            
+            return date.toLocaleDateString('th-TH');
+        }
+
+        function updatePerformanceMetrics() {
+            const approvedCount = borrowersData.filter(b => b.status === 'approved').length;
+            const totalCount = borrowersData.length;
+            const approvalRate = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
+
+            // Update approval rate
+            const approvalRateElement = document.getElementById('approvalRate');
+            const approvalRateBarElement = document.getElementById('approvalRateBar');
+            
+            if (approvalRateElement) approvalRateElement.textContent = `${approvalRate}%`;
+            if (approvalRateBarElement) {
+                approvalRateBarElement.style.width = `${approvalRate}%`;
+                approvalRateBarElement.style.transition = 'width 0.5s ease-in-out';
+            }
+
+            // Calculate loan amounts
+            const amounts = borrowersData.map(b => b.amount || 0);
+            const avgAmount = amounts.length > 0 ? Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length) : 0;
+            const minAmount = amounts.length > 0 ? Math.min(...amounts) : 0;
+            const maxAmount = amounts.length > 0 ? Math.max(...amounts) : 0;
+            const totalAmount = amounts.reduce((a, b) => a + b, 0);
+
+            // Update loan metrics
+            const loanMetrics = {
+                avgLoanAmount: avgAmount.toLocaleString(),
+                minLoan: minAmount.toLocaleString(),
+                maxLoan: maxAmount.toLocaleString(),
+                totalLoans: totalAmount.toLocaleString()
+            };
+
+            Object.entries(loanMetrics).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = value;
+            });
+        }
+
+        function exportReport(type) {
+            const reportData = {
+                type: type,
+                timestamp: new Date().toISOString(),
+                data: borrowersData,
+                summary: {
+                    total: borrowersData.length,
+                    approved: borrowersData.filter(b => b.status === 'approved').length,
+                    pending: borrowersData.filter(b => b.status === 'pending').length,
+                    rejected: borrowersData.filter(b => b.status === 'rejected').length
+                }
+            };
+
+            // Create and download JSON file
+            const dataStr = JSON.stringify(reportData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `baantk-report-${type}-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+            showAlert(`ส่งออกรายงาน${type}เรียบร้อยแล้ว`, 'success');
         }
 
         async function approveBorrower(id) {

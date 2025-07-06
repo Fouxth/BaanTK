@@ -1,19 +1,16 @@
-// Enhanced BaanTK Production API Server
+// Production-ready Loan Management System
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
-const compression = require("compression");
-const validator = require("validator");
-const jwt = require("jsonwebtoken");
 
-// Import custom services
-const validationService = require("./validation");
+// Import custom modules
 const securityService = require("./security");
+const validationService = require("./validation");
 const creditScoringService = require("./creditScoring");
-const governmentAPIService = require("./governmentAPI"); // เพิ่มการ import Government API
+const governmentAPI = require("./governmentAPI");
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -401,231 +398,10 @@ app.post("/", (req, res) => {
   }
 });
 
-// New Government Data Verification Endpoint
-app.post("/api/verify-citizen", registrationLimiter, async (req, res) => {
-  const startTime = Date.now();
-  const requestId = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-  try {
-    console.log(`🏛️ Citizen verification request [${requestId}]:`, {
-      ip: req.ip,
-      timestamp: new Date().toISOString()
-    });
-
-    const { idCard, userId } = req.body;
-
-    // Validate input
-    if (!idCard || !userId) {
-      return res.status(400).json({
-        error: "Missing required fields",
-        message: "กรุณาระบุเลขบัตรประชาชนและ User ID"
-      });
-    }
-
-    // Validate Thai ID Card format
-    if (!governmentAPIService.validateThaiIDCard(idCard)) {
-      return res.status(400).json({
-        error: "Invalid ID card format",
-        message: "รูปแบบเลขบัตรประชาชนไม่ถูกต้อง"
-      });
-    }
-
-    // Check rate limiting for government API
-    const canMakeRequest = await governmentAPIService.checkRateLimit('DOPA');
-    if (!canMakeRequest) {
-      return res.status(429).json({
-        error: "Rate limit exceeded",
-        message: "มีการขอข้อมูลมากเกินไป กรุณาลองใหม่ในภายหลัง"
-      });
-    }
-
-    // Check blacklist before making government API call
-    const isBlacklisted = await checkBlacklist(idCard, userId);
-    if (isBlacklisted) {
-      console.log(`🚫 Blacklisted ID attempted verification [${requestId}]:`, idCard);
-      
-      await securityService.logSecurityEvent("blacklist_verification_attempt", {
-        requestId,
-        idCard: governmentAPIService.maskIDCard(idCard),
-        userId: userId
-      }, req);
-
-      return res.status(403).json({
-        error: "Verification not permitted",
-        message: "ไม่สามารถตรวจสอบข้อมูลได้"
-      });
-    }
-
-    // Fetch citizen data from government APIs
-    console.log(`🔍 Fetching citizen data from government sources [${requestId}]`);
-    const govResult = await governmentAPIService.getCitizenDataMultiSource(idCard);
-
-    if (!govResult.success) {
-      console.log(`❌ Government API failed [${requestId}]:`, govResult.error);
-      
-      await securityService.logSecurityEvent("government_api_failed", {
-        requestId,
-        idCard: governmentAPIService.maskIDCard(idCard),
-        error: govResult.error,
-        sources_tried: govResult.sources_tried
-      }, req);
-
-      return res.status(404).json({
-        error: "Citizen data not found",
-        message: "ไม่พบข้อมูลบัตรประชาชนในระบบราชการ กรุณาตรวจสอบเลขบัตรหรือติดต่อเจ้าหน้าที่",
-        details: {
-          sources_checked: govResult.sources_tried || ['DOPA', 'NSO'],
-          suggestion: "ตรวจสอบเลขบัตรประชาชนหรือติดต่อกรมการปกครอง"
-        }
-      });
-    }
-
-    const citizenData = govResult.data;
-    console.log(`✅ Government data retrieved [${requestId}]:`, {
-      source: govResult.source,
-      name: `${citizenData.firstNameThai} ${citizenData.lastNameThai}`,
-      verificationLevel: citizenData.verificationLevel
-    });
-
-    // Validate citizen data quality
-    const dataQuality = validateCitizenDataQuality(citizenData);
-    if (!dataQuality.isValid) {
-      console.log(`⚠️ Poor data quality [${requestId}]:`, dataQuality.issues);
-      
-      return res.status(422).json({
-        error: "Incomplete citizen data",
-        message: "ข้อมูลบัตรประชาชนไม่ครบถ้วน กรุณาติดต่อกรมการปกครอง",
-        issues: dataQuality.issues
-      });
-    }
-
-    // Check age eligibility
-    const age = calculateAge(citizenData.birthDate);
-    if (age < 18 || age > 80) {
-      return res.status(422).json({
-        error: "Age not eligible",
-        message: `อายุ ${age} ปี ไม่เข้าเงื่อนไขการสมัครสินเชื่อ (ต้องอายุ 18-80 ปี)`
-      });
-    }
-
-    // Check if card is active/valid
-    if (citizenData.cardStatus && !citizenData.cardStatus.isActive) {
-      return res.status(422).json({
-        error: "Invalid card status",
-        message: "บัตรประชาชนหมดอายุหรือไม่ถูกต้อง กรุณาต่ออายุบัตรประชาชน"
-      });
-    }
-
-    // Log successful verification
-    await Promise.all([
-      securityService.logSecurityEvent("citizen_verification_success", {
-        requestId,
-        idCard: governmentAPIService.maskIDCard(idCard),
-        userId: userId,
-        dataSource: govResult.source,
-        verificationLevel: citizenData.verificationLevel,
-        processingTime: Date.now() - startTime
-      }, req),
-
-      // Store verification in database for future reference
-      db.collection("citizen_verifications").add({
-        idCard: citizenData.idCard,
-        userId: userId,
-        dataSource: govResult.source,
-        verificationLevel: citizenData.verificationLevel,
-        verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-        verifiedData: {
-          name: `${citizenData.firstNameThai} ${citizenData.lastNameThai}`,
-          birthDate: citizenData.birthDate,
-          address: citizenData.address?.fullAddress || '',
-          age: age
-        },
-        requestId: requestId,
-        sessionInfo: {
-          ip: req.ip,
-          userAgent: req.get("User-Agent")
-        }
-      })
-    );
-
-    // Return verified citizen data
-    res.json({
-      success: true,
-      message: "ตรวจสอบบัตรประชาชนสำเร็จ",
-      data: {
-        // ข้อมูลพื้นฐาน
-        idCard: citizenData.idCard,
-        titleThai: citizenData.titleThai,
-        firstNameThai: citizenData.firstNameThai,
-        lastNameThai: citizenData.lastNameThai,
-        firstNameEnglish: citizenData.firstNameEnglish,
-        lastNameEnglish: citizenData.lastNameEnglish,
-        birthDate: citizenData.birthDate,
-        age: age,
-        gender: citizenData.gender,
-        nationality: citizenData.nationality,
-        
-        // ที่อยู่
-        address: {
-          houseNumber: citizenData.address?.houseNumber || '',
-          village: citizenData.address?.village || '',
-          lane: citizenData.address?.lane || '',
-          road: citizenData.address?.road || '',
-          subDistrict: citizenData.address?.subDistrict || '',
-          district: citizenData.address?.district || '',
-          province: citizenData.address?.province || '',
-          postalCode: citizenData.address?.postalCode || '',
-          fullAddress: citizenData.address?.fullAddress || ''
-        },
-
-        // สถานะการตรวจสอบ
-        verification: {
-          level: citizenData.verificationLevel,
-          source: govResult.source,
-          timestamp: new Date().toISOString(),
-          isGovernmentVerified: true,
-          dataQuality: dataQuality.score,
-          ageEligible: true,
-          cardActive: citizenData.cardStatus?.isActive !== false
-        },
-
-        // ข้อมูลเพิ่มเติม (ถ้ามี)
-        additionalInfo: {
-          maritalStatus: citizenData.maritalStatus || '',
-          occupation: citizenData.occupation || '',
-          education: citizenData.education || '',
-          religion: citizenData.religion || ''
-        }
-      },
-      metadata: {
-        requestId: requestId,
-        processingTime: Date.now() - startTime,
-        dataSource: govResult.source,
-        verificationLevel: citizenData.verificationLevel
-      }
-    });
-
-  } catch (error) {
-    console.error(`❌ Error in citizen verification [${requestId}]:`, error);
-    
-    await securityService.logSecurityEvent("citizen_verification_error", {
-      requestId,
-      error: error.message,
-      processingTime: Date.now() - startTime
-    }, req);
-
-    res.status(500).json({
-      error: "Verification failed",
-      message: "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล กรุณาลองใหม่อีกครั้ง",
-      requestId: requestId
-    });
-  }
-});
-
-// LIFF Register endpoint (Modified to use verified government data)
+// LIFF Register endpoint with production-grade security and validation
 app.post("/api/liff-register", registrationLimiter, async (req, res) => {
   const startTime = Date.now();
-  const requestId = `reg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   try {
     console.log(`📥 Registration request [${requestId}]:`, {
@@ -635,96 +411,118 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
       hasBody: !!req.body
     });
 
-    const { 
-      idCard, 
-      userId, 
-      amount, 
-      frequency, 
-      currentAddress, // ที่อยู่ปัจจุบัน (อาจต่างจากทะเบียนบ้าน)
-      phoneNumber,
-      email,
-      occupation,
-      monthlyIncome,
-      verificationToken // Token จากการตรวจสอบบัตรประชาชน
-    } = req.body;
+    // Enhanced input validation using validation service
+    const validation = validationService.validateRegistration(req.body);
+    if (!validation.isValid) {
+      console.log(`❌ Validation failed [${requestId}]:`, validation.errors);
 
-    // Validate required fields
-    if (!idCard || !userId || !amount || !frequency) {
-      return res.status(400).json({
-        error: "Missing required fields",
-        message: "ข้อมูลไม่ครบถ้วน กรุณากรอกข้อมูลให้ครบ"
-      });
-    }
+      // Log validation failure
+      await securityService.logSecurityEvent("validation_failed", {
+        requestId,
+        errors: validation.errors,
+        requestBody: req.body
+      }, req);
 
-    // Verify that citizen data was previously verified
-    const verificationRecord = await db.collection("citizen_verifications")
-      .where("idCard", "==", idCard)
-      .where("userId", "==", userId)
-      .orderBy("verifiedAt", "desc")
-      .limit(1)
-      .get();
-
-    if (verificationRecord.empty) {
-      return res.status(400).json({
-        error: "Citizen not verified",
-        message: "กรุณาตรวจสอบบัตรประชาชนก่อนยื่นคำขอ"
-      });
-    }
-
-    const verifiedData = verificationRecord.docs[0].data();
-    console.log(`✅ Using verified citizen data [${requestId}]:`, {
-      source: verifiedData.dataSource,
-      verificationLevel: verifiedData.verificationLevel,
-      verifiedAt: verifiedData.verifiedAt
-    });
-
-    // Validate additional input
-    const additionalValidation = validateAdditionalInput({
-      amount,
-      frequency,
-      currentAddress,
-      phoneNumber,
-      email,
-      occupation,
-      monthlyIncome
-    });
-
-    if (!additionalValidation.isValid) {
       return res.status(400).json({
         error: "Validation failed",
-        message: "ข้อมูลไม่ถูกต้อง",
-        details: additionalValidation.errors
+        message: "ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง",
+        details: validation.errors
       });
     }
 
-    // Combine government verified data with user input
-    const completeUserData = {
-      // ข้อมูลจากราชการ (ไม่สามารถแก้ไขได้)
-      idCard: verifiedData.verifiedData.idCard || idCard,
-      firstName: verifiedData.verifiedData.name.split(' ')[0],
-      lastName: verifiedData.verifiedData.name.split(' ').slice(1).join(' '),
-      birthDate: verifiedData.verifiedData.birthDate,
-      age: verifiedData.verifiedData.age,
-      addressOnId: verifiedData.verifiedData.address, // ที่อยู่ตามทะเบียนบ้าน
-      
-      // ข้อมูลที่ผู้ใช้กรอกเอง
-      amount: parseFloat(amount),
-      frequency: frequency,
-      currentAddress: currentAddress || verifiedData.verifiedData.address, // ใช้ที่อยู่ทะเบียนบ้านถ้าไม่ระบุ
-      phoneNumber: phoneNumber,
-      email: email,
-      occupation: occupation,
-      monthlyIncome: monthlyIncome ? parseFloat(monthlyIncome) : null,
-      
-      // ข้อมูลระบบ
-      userId: userId,
-      verificationLevel: verifiedData.verificationLevel,
-      dataSource: verifiedData.dataSource,
-      verifiedAt: verifiedData.verifiedAt
+    const userData = validation.data;
+    console.log(`✅ Input validation passed [${requestId}]:`, userData.firstName, userData.lastName);
+
+    // 🔍 ตรวจสอบรูปแบบบัตรประชาชน
+    console.log(`🔍 Verifying ID Card format [${requestId}]`);
+    
+    const idCardValidation = governmentAPI.validateIDCardBasic(userData.idCard);
+    if (!idCardValidation.isValid) {
+      console.log(`❌ ID Card validation failed [${requestId}]:`, idCardValidation.errors);
+
+      await securityService.logSecurityEvent("invalid_id_card", {
+        requestId,
+        idCard: userData.idCard,
+        errors: idCardValidation.errors
+      }, req);
+
+      return res.status(400).json({
+        error: "Invalid ID Card",
+        message: "เลขบัตรประชาชนไม่ถูกต้อง",
+        details: idCardValidation.errors
+      });
+    }
+
+    // 🔍 ตรวจสอบสถานะบัตรประชาชน
+    const cardVerification = await governmentAPI.verifyIDCardStatus(userData.idCard);
+    if (!cardVerification.valid) {
+      console.log(`❌ ID Card verification failed [${requestId}]:`, cardVerification.message);
+
+      await securityService.logSecurityEvent("id_card_verification_failed", {
+        requestId,
+        idCard: userData.idCard,
+        status: cardVerification.status,
+        message: cardVerification.message
+      }, req);
+
+      return res.status(400).json({
+        error: "ID Card verification failed",
+        message: cardVerification.message,
+        status: cardVerification.status
+      });
+    }
+
+    console.log(`✅ ID Card verified successfully [${requestId}]`);
+
+    // เพิ่มข้อมูลการตรวจสอบเข้ากับข้อมูลผู้ใช้
+    const enhancedUserData = {
+      ...userData,
+      idCardVerified: true,
+      idCardStatus: cardVerification.status,
+      verificationTimestamp: new Date().toISOString()
     };
 
+    console.log(`✅ Enhanced user data prepared [${requestId}]`);
+
+    // Enhanced blacklist check with detailed logging
+    const isBlacklisted = await checkBlacklist(enhancedUserData.idCard, enhancedUserData.userId);
+    if (isBlacklisted) {
+      console.log(`🚫 Blacklist detected [${requestId}]:`, enhancedUserData.idCard);
+
+      // Log blacklist attempt with high priority
+      await securityService.logSecurityEvent("blacklist_attempt", {
+        requestId,
+        idCard: enhancedUserData.idCard,
+        userId: enhancedUserData.userId,
+        userName: `${enhancedUserData.firstName} ${enhancedUserData.lastName}`,
+        severity: "HIGH"
+      }, req);
+
+      return res.status(403).json({
+        error: "Application not permitted",
+        message: "ไม่สามารถยื่นคำขอได้ กรุณาติดต่อเจ้าหน้าที่"
+      });
+    }
+
+    // Enhanced duplicate check
+    const isDuplicate = await checkDuplicateApplication(enhancedUserData.idCard, enhancedUserData.userId);
+    if (isDuplicate) {
+      console.log(`🔄 Duplicate application [${requestId}]:`, enhancedUserData.idCard);
+
+      await securityService.logSecurityEvent("duplicate_application", {
+        requestId,
+        idCard: enhancedUserData.idCard,
+        userId: enhancedUserData.userId
+      }, req);
+
+      return res.status(409).json({
+        error: "Duplicate application",
+        message: "มีการยื่นคำขอที่อยู่ในระหว่างการพิจารณาแล้ว หรือยื่นคำขอใหม่เร็วเกินไป"
+      });
+    }
+
     // Enhanced credit scoring with detailed analysis
-    const creditAssessment = await creditScoringService.calculateCreditScore(completeUserData, userId);
+    const creditAssessment = await creditScoringService.calculateCreditScore(enhancedUserData, enhancedUserData.userId);
     console.log(`📊 Credit assessment [${requestId}]:`, {
       score: creditAssessment.score,
       grade: creditAssessment.grade,
@@ -733,13 +531,13 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
     });
 
     // Calculate loan terms with enhanced logic
-    const loanTerms = calculateLoanTerms(completeUserData, creditAssessment);
+    const loanTerms = calculateLoanTerms(enhancedUserData, creditAssessment);
 
     // Auto-approval logic with enhanced criteria
-    const autoApproval = determineAutoApproval(creditAssessment, completeUserData, loanTerms);
+    const autoApproval = determineAutoApproval(creditAssessment, enhancedUserData, loanTerms);
 
     // Create comprehensive borrower record
-    const borrowerData = createBorrowerRecord(completeUserData, creditAssessment, loanTerms, autoApproval, req, requestId);
+    const borrowerData = createBorrowerRecord(enhancedUserData, creditAssessment, loanTerms, autoApproval, req, requestId);
 
     // Save to Firestore with transaction
     const docRef = await db.collection("borrowers").add(borrowerData);
@@ -751,18 +549,20 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
         type: "new_application",
         requestId,
         borrowerId: docRef.id,
-        userId: userId,
-        idCard: idCard,
-        amount: amount,
+        userId: enhancedUserData.userId,
+        idCard: enhancedUserData.idCard,
+        amount: enhancedUserData.amount,
         creditScore: creditAssessment.score,
         status: autoApproval.status,
         autoApproved: autoApproval.autoApproved,
+        dataSource: "government_registry",
+        verificationTimestamp: enhancedUserData.verificationTimestamp,
         processingTime: Date.now() - startTime,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       }),
 
       // Send notification if approved
-      autoApproval.autoApproved ? sendApprovalNotification(completeUserData, loanTerms, docRef.id) : null
+      autoApproval.autoApproved ? sendApprovalNotification(enhancedUserData, loanTerms, docRef.id) : null
     ]);
 
     // Generate comprehensive response
@@ -775,15 +575,16 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
       requestId: requestId,
       data: {
         applicant: {
-          firstName: completeUserData.firstName,
-          lastName: completeUserData.lastName,
-          idCard: `${completeUserData.idCard.substr(0, 4)}-xxxx-xxxx-x${completeUserData.idCard.substr(-1)}`
+          firstName: enhancedUserData.firstName,
+          lastName: enhancedUserData.lastName,
+          idCard: `${enhancedUserData.idCard.substr(0, 4)}-xxxx-xxxx-x${enhancedUserData.idCard.substr(-1)}`,
+          verified: enhancedUserData.idCardVerified
         },
         loan: {
-          requestedAmount: amount,
+          requestedAmount: enhancedUserData.amount,
           totalAmount: loanTerms.totalWithInterest,
           interestRate: `${(loanTerms.interestRate * 100).toFixed(1)}%`,
-          frequency: frequency,
+          frequency: enhancedUserData.frequency,
           dueDate: loanTerms.dueDate.toLocaleDateString("th-TH"),
           installmentAmount: loanTerms.installmentAmount
         },
@@ -794,6 +595,10 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
           status: autoApproval.status,
           autoApproved: autoApproval.autoApproved
         },
+        verification: {
+          idCardStatus: enhancedUserData.idCardStatus,
+          verifiedAt: enhancedUserData.verificationTimestamp
+        },
         nextSteps: autoApproval.autoApproved ?
           ["กรุณาเตรียมเอกสารประกอบการกู้", "รอการติดต่อจากเจ้าหน้าที่"] :
           ["รอการอนุมัติจากเจ้าหน้าที่", "ระยะเวลาพิจารณา 1-3 วันทำการ"]
@@ -803,10 +608,11 @@ app.post("/api/liff-register", registrationLimiter, async (req, res) => {
     const processingTime = Date.now() - startTime;
     console.log(`✅ Registration completed [${requestId}]:`, {
       id: docRef.id,
-      name: `${completeUserData.firstName} ${completeUserData.lastName}`,
-      amount: amount,
+      name: `${enhancedUserData.titleName} ${enhancedUserData.officialFirstName || enhancedUserData.firstName} ${enhancedUserData.officialLastName || enhancedUserData.lastName}`,
+      amount: enhancedUserData.amount,
       status: autoApproval.status,
       creditScore: creditAssessment.score,
+      dataSource: "government_registry",
       processingTime: `${processingTime}ms`
     });
 
@@ -1550,697 +1356,232 @@ app.delete("/api/admin/blacklist/:id", authenticateAdmin, async (req, res) => {
 
 // Helper Functions for Enhanced Loan Processing
 
-// Calculate comprehensive loan terms
+/**
+ * เปรียบเทียบข้อมูลที่ผู้ใช้กรอกกับข้อมูลจากทะเบียนราษฎร
+ */
+function compareUserDataWithGovernmentData(userData, citizenData) {
+  const discrepancies = [];
+
+  // เปรียบเทียบชื่อ
+  if (userData.firstName.toLowerCase() !== citizenData.firstName.toLowerCase()) {
+    discrepancies.push({
+      field: "firstName",
+      userInput: userData.firstName,
+      officialData: citizenData.firstName,
+      message: "ชื่อไม่ตรงกับข้อมูลในทะเบียนราษฎร"
+    });
+  }
+
+  // เปรียบเทียบนามสกุล
+  if (userData.lastName.toLowerCase() !== citizenData.lastName.toLowerCase()) {
+    discrepancies.push({
+      field: "lastName",
+      userInput: userData.lastName,
+      officialData: citizenData.lastName,
+      message: "นามสกุลไม่ตรงกับข้อมูลในทะเบียนราษฎร"
+    });
+  }
+
+  // เปรียบเทียบวันเกิด
+  if (userData.birthDate !== citizenData.birthDate) {
+    discrepancies.push({
+      field: "birthDate",
+      userInput: userData.birthDate,
+      officialData: citizenData.birthDate,
+      message: "วันเกิดไม่ตรงกับข้อมูลในทะเบียนราษฎร"
+    });
+  }
+
+  return discrepancies;
+}
+
+/**
+ * คำนวณเงื่อนไขการกู้เงิน
+ */
 function calculateLoanTerms(userData, creditAssessment) {
+  const baseInterestRate = 0.10; // 10% ต่อปี
+  let interestRate = baseInterestRate;
+
+  // ปรับอัตราดอกเบียตามคะแนนเครดิต
+  if (creditAssessment.score >= 750) {
+    interestRate = 0.08; // 8%
+  } else if (creditAssessment.score >= 650) {
+    interestRate = 0.09; // 9%
+  } else if (creditAssessment.score >= 550) {
+    interestRate = 0.12; // 12%
+  } else {
+    interestRate = 0.15; // 15%
+  }
+
+  // คำนวณระยะเวลาผ่อนชำระ
+  let termMonths;
+  switch (userData.frequency) {
+    case "daily":
+      termMonths = 1; // 30 วัน
+      break;
+    case "weekly":
+      termMonths = 3; // 12 สัปดาห์
+      break;
+    case "monthly":
+      termMonths = 12; // 12 เดือน
+      break;
+    default:
+      termMonths = 6;
+  }
+
+  const principal = userData.amount;
+  const totalInterest = principal * interestRate * (termMonths / 12);
+  const totalWithInterest = principal + totalInterest;
+
+  // คำนวณงวดการผ่อนชำระ
+  let installments;
+  let installmentAmount;
+  
+  switch (userData.frequency) {
+    case "daily":
+      installments = 30;
+      installmentAmount = Math.ceil(totalWithInterest / installments);
+      break;
+    case "weekly":
+      installments = 12;
+      installmentAmount = Math.ceil(totalWithInterest / installments);
+      break;
+    case "monthly":
+      installments = termMonths;
+      installmentAmount = Math.ceil(totalWithInterest / installments);
+      break;
+    default:
+      installments = 6;
+      installmentAmount = Math.ceil(totalWithInterest / installments);
+  }
+
+  // คำนวณวันครบกำหนด
   const today = new Date();
-
-  // Dynamic interest rate based on credit score and frequency
-  let baseRate;
-  switch (userData.frequency) {
-  case "daily":
-    baseRate = 0.25; // 25% for daily
-    break;
-  case "weekly":
-    baseRate = 0.18; // 18% for weekly
-    break;
-  case "monthly":
-    baseRate = 0.12; // 12% for monthly
-    break;
-  default:
-    baseRate = 0.15;
-  }
-
-  // Credit score adjustment (better score = lower rate)
-  const scoreAdjustment = Math.max(-0.05, (700 - creditAssessment.score) / 2000);
-  const finalRate = Math.max(0.05, baseRate + scoreAdjustment); // Minimum 5%
-
-  // Calculate due date
   const dueDate = new Date(today);
-  switch (userData.frequency) {
-  case "daily":
-    dueDate.setDate(today.getDate() + 1);
-    break;
-  case "weekly":
-    dueDate.setDate(today.getDate() + 7);
-    break;
-  case "monthly":
-    dueDate.setMonth(today.getMonth() + 1);
-    break;
-  }
-
-  const totalWithInterest = userData.amount * (1 + finalRate);
-  const installmentAmount = calculateInstallmentAmount(totalWithInterest, userData.frequency);
+  dueDate.setMonth(today.getMonth() + termMonths);
 
   return {
-    interestRate: finalRate,
-    totalWithInterest: Math.round(totalWithInterest * 100) / 100,
+    principal: principal,
+    interestRate: interestRate,
+    termMonths: termMonths,
+    totalInterest: totalInterest,
+    totalWithInterest: totalWithInterest,
+    installments: installments,
+    installmentAmount: installmentAmount,
     dueDate: dueDate,
-    installmentAmount: Math.round(installmentAmount * 100) / 100,
-    numberOfPayments: getNumberOfPayments(userData.frequency),
-    dailyInterestRate: finalRate / getNumberOfPayments(userData.frequency)
+    frequency: userData.frequency
   };
 }
 
-// Calculate installment amount based on frequency
-function calculateInstallmentAmount(totalAmount, frequency) {
-  switch (frequency) {
-  case "daily":
-    return totalAmount / 30; // 30 days
-  case "weekly":
-    return totalAmount / 4; // 4 weeks
-  case "monthly":
-    return totalAmount; // 1 month
-  default:
-    return totalAmount;
-  }
-}
-
-// Get number of payments based on frequency
-function getNumberOfPayments(frequency) {
-  switch (frequency) {
-  case "daily":
-    return 30;
-  case "weekly":
-    return 4;
-  case "monthly":
-    return 1;
-  default:
-    return 1;
-  }
-}
-
-// Enhanced auto-approval determination
+/**
+ * ตัดสินใจการอนุมัติอัตโนมัติ
+ */
 function determineAutoApproval(creditAssessment, userData, loanTerms) {
   let autoApproved = false;
   let status = "pending";
-  let reason = "Manual review required";
+  let reason = "";
 
-  // Auto-approval criteria (all must be met)
-  const criteria = {
-    creditScore: creditAssessment.score >= 700,
-    loanAmount: userData.amount <= 15000,
-    frequency: ["weekly", "monthly"].includes(userData.frequency),
-    riskLevel: creditAssessment.riskLevel === "low",
-    recommendation: creditAssessment.recommendation === "auto_approve"
-  };
-
-  // Check if all criteria are met
-  if (Object.values(criteria).every(Boolean)) {
+  // เงื่อนไขการอนุมัติอัตโนมัติ
+  if (creditAssessment.score >= 700 && userData.amount <= 10000) {
     autoApproved = true;
     status = "approved";
-    reason = "Auto-approved - meets all criteria";
+    reason = "คะแนนเครดิตสูงและจำนวนเงินกู้อยู่ในเกณฑ์ปลอดภัย";
+  } else if (creditAssessment.score >= 650 && userData.amount <= 5000) {
+    autoApproved = true;
+    status = "approved";
+    reason = "คะแนนเครดิตดีและจำนวนเงินกู้น้อย";
+  } else if (creditAssessment.score < 500) {
+    status = "rejected";
+    reason = "คะแนนเครดิตต่ำเกินไป";
+  } else if (userData.amount > 30000) {
+    status = "pending";
+    reason = "จำนวนเงินกู้สูง ต้องการการพิจารณาจากเจ้าหน้าที่";
   } else {
-    // Determine specific reason for manual review
-    if (!criteria.creditScore) {
-      reason = "Credit score below auto-approval threshold";
-    } else if (!criteria.loanAmount) {
-      reason = "Loan amount exceeds auto-approval limit";
-    } else if (!criteria.frequency) {
-      reason = "Payment frequency requires manual review";
-    } else if (!criteria.riskLevel) {
-      reason = "Risk level too high for auto-approval";
-    }
+    status = "pending";
+    reason = "ต้องการการพิจารณาจากเจ้าหน้าที่";
   }
 
   return {
-    autoApproved,
-    status,
-    reason,
-    criteria
+    autoApproved: autoApproved,
+    status: status,
+    reason: reason,
+    creditScore: creditAssessment.score,
+    riskLevel: creditAssessment.riskLevel
   };
 }
 
-// Create comprehensive borrower record
+/**
+ * สร้าง record ของผู้กู้เงิน
+ */
 function createBorrowerRecord(userData, creditAssessment, loanTerms, autoApproval, req, requestId) {
   return {
-    // Request Information
-    requestId: requestId,
-
-    // Personal Information (encrypted sensitive data)
-    firstName: userData.firstName,
-    lastName: userData.lastName,
-    birthDate: userData.birthDate,
-    idCard: userData.idCard, // Consider encryption in production
-    address: userData.address,
+    // ข้อมูลพื้นฐาน
     userId: userData.userId,
-    phoneNumber: userData.phoneNumber || null,
-    email: userData.email || null,
-
-    // Loan Information
-    requestedAmount: userData.amount,
-    approvedAmount: autoApproval.autoApproved ? userData.amount : 0,
-    totalLoan: loanTerms.totalWithInterest,
+    requestId: requestId,
+    
+    // ข้อมูลส่วนตัวจากทะเบียนราษฎร
+    titleName: userData.titleName,
+    firstName: userData.officialFirstName || userData.firstName,
+    lastName: userData.officialLastName || userData.lastName,
+    birthDate: userData.birthDate,
+    idCard: userData.idCard,
+    gender: userData.gender,
+    nationality: userData.nationality,
+    religion: userData.religion,
+    
+    // ที่อยู่
+    address: userData.address, // ที่อยู่ที่กรอก
+    officialAddress: userData.officialAddress, // ที่อยู่จากทะเบียนราษฎร
+    addressDetails: userData.addressDetails,
+    
+    // ข้อมูลสินเชื่อ
+    amount: userData.amount,
     frequency: userData.frequency,
-    interestRate: loanTerms.interestRate,
-    installmentAmount: loanTerms.installmentAmount,
-    numberOfPayments: loanTerms.numberOfPayments,
-    dueDate: admin.firestore.Timestamp.fromDate(loanTerms.dueDate),
-
-    // Payment Information
-    paidAmount: 0,
-    remainingAmount: loanTerms.totalWithInterest,
-    paymentHistory: [],
-    lastPaymentDate: null,
-    nextPaymentDate: admin.firestore.Timestamp.fromDate(loanTerms.dueDate),
-
-    // Status Information
+    loanTerms: loanTerms,
+    
+    // ประเมินความเสี่ยง
+    creditAssessment: creditAssessment,
+    creditHistory: userData.creditHistory,
+    autoApproval: autoApproval,
+    
+    // สถานะ
     status: autoApproval.status,
-    autoApproved: autoApproval.autoApproved,
-    approvalReason: autoApproval.reason,
-
-    // Credit Assessment
-    creditScore: creditAssessment.score,
-    creditGrade: creditAssessment.grade,
-    riskLevel: creditAssessment.riskLevel,
-    creditFactors: creditAssessment.factors,
-    creditReport: creditScoringService.generateCreditReport(creditAssessment, userData),
-
-    // Timestamps
+    paid: 0,
+    
+    // ข้อมูลบัตรประชาชน
+    idCardStatus: userData.idCardStatus,
+    idCardIssueDate: userData.idCardIssueDate,
+    idCardExpiryDate: userData.idCardExpiryDate,
+    
+    // ข้อมูลระบบ
+    dataSource: userData.dataSource,
+    verificationTimestamp: userData.verificationTimestamp,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    approvedAt: autoApproval.autoApproved ? admin.firestore.FieldValue.serverTimestamp() : null,
-
-    // Security Information
-    ipAddress: req.ip,
-    userAgent: req.get("User-Agent"),
-    sessionInfo: {
-      country: req.headers["cf-ipcountry"] || "Unknown",
-      region: req.headers["cf-region"] || "Unknown"
-    },
-
-    // Compliance and Audit
-    complianceChecks: {
-      blacklistCheck: "passed",
-      duplicateCheck: "passed",
-      ageVerification: "passed",
-      idCardVerification: "passed"
-    },
-
-    // Business Logic
-    loanPurpose: "personal", // Could be expanded
-    documentStatus: "pending",
-    verificationStatus: "pending",
-    disbursementStatus: autoApproval.autoApproved ? "pending" : "waiting_approval",
-
-    // Communication
-    notifications: {
-      sms: false,
-      email: false,
-      line: true
-    },
-
-    // Additional metadata
-    metadata: {
-      source: "liff_registration",
-      version: "2.0",
-      processingTime: null // Will be updated
+    
+    // ข้อมูล Request
+    requestInfo: {
+      ip: req.ip,
+      userAgent: req.get("User-Agent"),
+      timestamp: new Date().toISOString()
     }
   };
 }
 
-// Send approval notification (placeholder - implement with your notification system)
+/**
+ * ส่งการแจ้งเตือนการอนุมัติ
+ */
 async function sendApprovalNotification(userData, loanTerms, borrowerId) {
   try {
-    // TODO: Implement LINE notification
-    console.log("📱 Sending approval notification:", {
-      name: `${userData.firstName} ${userData.lastName}`,
-      amount: loanTerms.totalWithInterest,
-      dueDate: loanTerms.dueDate,
-      borrowerId: borrowerId
-    });
-
-    // Example notification data
-    const notificationData = {
-      type: "loan_approved",
-      borrowerId: borrowerId,
-      recipient: userData.userId,
-      message: `🎉 เงินกู้ของคุณได้รับการอนุมัติแล้ว!\nจำนวน: ${loanTerms.totalWithInterest.toLocaleString()} บาท\nครบกำหนดชำระ: ${loanTerms.dueDate.toLocaleDateString("th-TH")}`,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      status: "pending"
-    };
-
-    // Save notification to database
-    await db.collection("notifications").add(notificationData);
-
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to send notification:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Get detailed borrower information (Admin only)
-app.get("/api/admin/borrowers/:id", authenticateAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const borrowerDoc = await db.collection("borrowers").doc(id).get();
-
-    if (!borrowerDoc.exists) {
-      return res.status(404).json({
-        error: "Borrower not found",
-        message: "ไม่พบข้อมูลผู้กู้"
-      });
-    }
-
-    const borrowerData = borrowerDoc.data();
-
-    // Get related logs
-    const [adminLogs, paymentHistory] = await Promise.all([
-      db.collection("adminLogs")
-        .where("borrowerId", "==", id)
-        .orderBy("timestamp", "desc")
-        .limit(10)
-        .get(),
-      db.collection("payments")
-        .where("borrowerId", "==", id)
-        .orderBy("paidAt", "desc")
-        .get()
-    ]);
-
-    const logs = [];
-    adminLogs.forEach((doc) => {
-      const data = doc.data();
-      logs.push({
-        id: doc.id,
-        ...data,
-        timestamp: data.timestamp?.toDate?.()?.toISOString()
-      });
-    });
-
-    const payments = [];
-    paymentHistory.forEach((doc) => {
-      const data = doc.data();
-      payments.push({
-        id: doc.id,
-        ...data,
-        paidAt: data.paidAt?.toDate?.()?.toISOString()
-      });
-    });
-
-    res.json({
-      success: true,
-      data: {
-        id: id,
-        ...borrowerData,
-        // Convert timestamps
-        createdAt: borrowerData.createdAt?.toDate?.()?.toISOString(),
-        updatedAt: borrowerData.updatedAt?.toDate?.()?.toISOString(),
-        approvedAt: borrowerData.approvedAt?.toDate?.()?.toISOString(),
-        dueDate: borrowerData.dueDate?.toDate?.()?.toISOString(),
-        // Related data
-        adminLogs: logs,
-        paymentHistory: payments
-      }
-    });
-  } catch (error) {
-    console.error("❌ Error fetching borrower details:", error);
-    res.status(500).json({
-      error: "Failed to fetch borrower details",
-      message: "ไม่สามารถดึงข้อมูลผู้กู้ได้"
-    });
-  }
-});
-
-// Update borrower information (Admin only)
-app.put("/api/admin/borrowers/:id", authenticateAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    // Validate updates
-    const allowedFields = [
-      "firstName", "lastName", "address", "phoneNumber", "email",
-      "adminNotes", "riskLevel", "creditScore"
-    ];
-
-    const sanitizedUpdates = {};
-    for (const [key, value] of Object.entries(updates)) {
-      if (allowedFields.includes(key) && value !== undefined) {
-        sanitizedUpdates[key] = validationService.sanitizeInput(value);
-      }
-    }
-
-    if (Object.keys(sanitizedUpdates).length === 0) {
-      return res.status(400).json({
-        error: "No valid fields to update",
-        message: "ไม่มีข้อมูลที่ถูกต้องสำหรับการอัพเดท"
-      });
-    }
-
-    sanitizedUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-
-    await db.collection("borrowers").doc(id).update(sanitizedUpdates);
-
-    // Log admin action
-    await db.collection("adminLogs").add({
-      type: "borrower_update",
-      borrowerId: id,
-      updatedFields: Object.keys(sanitizedUpdates),
-      adminId: req.admin.id || "admin",
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    res.json({
-      success: true,
-      message: "อัพเดทข้อมูลสำเร็จ",
-      updatedFields: Object.keys(sanitizedUpdates)
-    });
-  } catch (error) {
-    console.error("❌ Error updating borrower:", error);
-    res.status(500).json({
-      error: "Failed to update borrower",
-      message: "ไม่สามารถอัพเดทข้อมูลผู้กู้ได้"
-    });
-  }
-});
-
-// Get admin logs with filtering (Admin only)
-app.get("/api/admin/logs", authenticateAdmin, async (req, res) => {
-  try {
-    const {
-      type,
-      page = 1,
-      limit = 50,
-      startDate,
-      endDate,
-      adminId
-    } = req.query;
-
-    const pagination = validationService.validatePagination(page, limit);
-    const dateRange = validationService.validateDateRange(startDate, endDate);
-
-    if (!dateRange.isValid) {
-      return res.status(400).json({ error: dateRange.error });
-    }
-
-    let query = db.collection("adminLogs");
-
-    if (type) {
-      query = query.where("type", "==", type);
-    }
-
-    if (adminId) {
-      query = query.where("adminId", "==", adminId);
-    }
-
-    if (dateRange.start) {
-      query = query.where("timestamp", ">=", admin.firestore.Timestamp.fromDate(dateRange.start));
-    }
-
-    if (dateRange.end) {
-      query = query.where("timestamp", "<=", admin.firestore.Timestamp.fromDate(dateRange.end));
-    }
-
-    query = query.orderBy("timestamp", "desc")
-      .limit(pagination.limit)
-      .offset((pagination.page - 1) * pagination.limit);
-
-    const snapshot = await query.get();
-
-    const logs = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      logs.push({
-        id: doc.id,
-        ...data,
-        timestamp: data.timestamp?.toDate?.()?.toISOString()
-      });
-    });
-
-    res.json({
-      success: true,
-      data: logs,
-      pagination: pagination,
-      filters: { type, adminId, startDate, endDate }
-    });
-  } catch (error) {
-    console.error("❌ Error fetching admin logs:", error);
-    res.status(500).json({
-      error: "Failed to fetch logs",
-      message: "ไม่สามารถดึงข้อมูล log ได้"
-    });
-  }
-});
-
-// Export data for reporting (Admin only)
-app.get("/api/admin/export", authenticateAdmin, async (req, res) => {
-  try {
-    const { type = "borrowers", format = "json" } = req.query;
-
-    let data = [];
-
-    switch (type) {
-    case "borrowers":
-      const borrowersSnap = await db.collection("borrowers").get();
-      borrowersSnap.forEach((doc) => {
-        const docData = doc.data();
-        data.push({
-          id: doc.id,
-          ...docData,
-          // Mask sensitive data
-          idCard: docData.idCard ? `${docData.idCard.substr(0, 4)}-xxxx-xxxx-x${docData.idCard.substr(-1)}` : null,
-          createdAt: docData.createdAt?.toDate?.()?.toISOString(),
-          updatedAt: docData.updatedAt?.toDate?.()?.toISOString(),
-          dueDate: docData.dueDate?.toDate?.()?.toISOString()
-        });
-      });
-      break;
-
-    case "statistics":
-      // Get comprehensive statistics for export
-      const statsResponse = await fetch("/api/admin/dashboard-stats");
-      data = await statsResponse.json();
-      break;
-
-    default:
-      return res.status(400).json({
-        error: "Invalid export type",
-        message: "ประเภทการ export ไม่ถูกต้อง"
-      });
-    }
-
-    // Set appropriate headers
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, "-");
-    const filename = `baantk-${type}-${timestamp}.${format}`;
-
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-
-    if (format === "csv") {
-      res.setHeader("Content-Type", "text/csv");
-      // TODO: Implement CSV conversion
-      res.send("CSV export not implemented yet");
-    } else {
-      res.setHeader("Content-Type", "application/json");
-      res.json({
-        success: true,
-        exportType: type,
-        timestamp: new Date().toISOString(),
-        recordCount: Array.isArray(data) ? data.length : 1,
-        data: data
-      });
-    }
-
-    // Log export action
-    await securityService.logSecurityEvent("data_export", {
-      exportType: type,
-      format: format,
-      recordCount: Array.isArray(data) ? data.length : 1,
-      adminId: req.admin.id || "admin"
-    }, req);
-  } catch (error) {
-    console.error("❌ Error exporting data:", error);
-    res.status(500).json({
-      error: "Export failed",
-      message: "ไม่สามารถ export ข้อมูลได้"
-    });
-  }
-});
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error("🔥 Unhandled error:", error);
-
-  // Log critical errors
-  securityService.logSecurityEvent("system_error", {
-    error: error.message,
-    stack: error.stack,
-    path: req.path,
-    method: req.method
-  }, req);
-
-  res.status(500).json({
-    error: "Internal server error",
-    message: "เกิดข้อผิดพลาดภายในระบบ",
-    requestId: `error_${Date.now()}`
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: "Not found",
-    message: "ไม่พบ endpoint ที่ระบุ",
-    path: req.path
-  });
-});
-
-// Export the enhanced webhook function
-exports.webhook = functions.https.onRequest(app);
-
-// Optional: Export individual functions for testing
-exports.securityService = securityService;
-exports.validationService = validationService;
-exports.creditScoringService = creditScoringService;
-
-// Helper functions for government data integration
-
-/**
- * คำนวณอายุจากวันเกิด
- * @param {string} birthDate - วันเกิดในรูปแบบ DD/MM/YYYY
- * @returns {number} อายุเป็นปี
- */
-function calculateAge(birthDate) {
-  if (!birthDate) return 0;
-  
-  try {
-    const [day, month, year] = birthDate.split('/').map(Number);
-    const birth = new Date(year, month - 1, day);
-    const today = new Date();
+    // TODO: ส่งการแจ้งเตือนผ่าน LINE
+    console.log(`📧 Sending approval notification for borrower: ${borrowerId}`);
     
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    
-    return age;
+    // ในอนาคตจะเพิ่มการส่ง LINE message
+    return true;
   } catch (error) {
-    console.error('Error calculating age:', error);
-    return 0;
-  }
-}
-
-/**
- * ตรวจสอบคุณภาพของข้อมูลที่ได้จากราชการ
- * @param {Object} citizenData - ข้อมูลประชาชนจาก Government API
- * @returns {Object} ผลการตรวจสอบคุณภาพข้อมูล
- */
-function validateCitizenDataQuality(citizenData) {
-  const issues = [];
-  let score = 100;
-
-  // ตรวจสอบข้อมูลพื้นฐาน
-  if (!citizenData.firstNameThai || citizenData.firstNameThai.length < 2) {
-    issues.push('ชื่อไม่ครบถ้วน');
-    score -= 20;
-  }
-
-  if (!citizenData.lastNameThai || citizenData.lastNameThai.length < 2) {
-    issues.push('นามสกุลไม่ครบถ้วน');
-    score -= 20;
-  }
-
-  if (!citizenData.birthDate || !isValidDate(citizenData.birthDate)) {
-    issues.push('วันเกิดไม่ถูกต้อง');
-    score -= 15;
-  }
-
-  if (!citizenData.idCard || citizenData.idCard.length !== 13) {
-    issues.push('เลขบัตรประชาชนไม่ถูกต้อง');
-    score -= 25;
-  }
-
-  // ตรวจสอบที่อยู่
-  if (!citizenData.address || !citizenData.address.fullAddress) {
-    issues.push('ที่อยู่ไม่ครบถ้วน');
-    score -= 10;
-  }
-
-  // ตรวจสอบสถานะบัตร
-  if (citizenData.cardStatus && !citizenData.cardStatus.isActive) {
-    issues.push('บัตรประชาชนหมดอายุหรือไม่ใช้งาน');
-    score -= 30;
-  }
-
-  return {
-    isValid: score >= 70, // ข้อมูลต้องมีคุณภาพอย่างน้อย 70%
-    score: Math.max(0, score),
-    issues: issues,
-    quality: score >= 90 ? 'excellent' : score >= 80 ? 'good' : score >= 70 ? 'acceptable' : 'poor'
-  };
-}
-
-/**
- * ตรวจสอบรูปแบบวันที่
- * @param {string} dateString - วันที่ในรูปแบบ DD/MM/YYYY
- * @returns {boolean} ถูกต้องหรือไม่
- */
-function isValidDate(dateString) {
-  if (!dateString) return false;
-  
-  const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
-  if (!dateRegex.test(dateString)) return false;
-  
-  try {
-    const [day, month, year] = dateString.split('/').map(Number);
-    const date = new Date(year, month - 1, day);
-    
-    return date.getDate() === day && 
-           date.getMonth() === month - 1 && 
-           date.getFullYear() === year &&
-           year >= 1900 && 
-           year <= new Date().getFullYear();
-  } catch (error) {
+    console.error("Error sending approval notification:", error);
     return false;
   }
 }
 
-/**
- * ตรวจสอบข้อมูลเพิ่มเติมที่ผู้ใช้กรอก
- * @param {Object} data - ข้อมูลที่ผู้ใช้กรอก
- * @returns {Object} ผลการตรวจสอบ
- */
-function validateAdditionalInput(data) {
-  const errors = [];
-
-  // ตรวจสอบจำนวนเงินกู้
-  const amount = parseFloat(data.amount);
-  if (isNaN(amount) || amount < 100 || amount > 50000) {
-    errors.push('จำนวนเงินกู้ต้องอยู่ระหว่าง 100-50,000 บาท');
-  }
-
-  // ตรวจสอบความถี่การชำระ
-  if (!['daily', 'weekly', 'monthly'].includes(data.frequency)) {
-    errors.push('ระยะเวลาการชำระไม่ถูกต้อง');
-  }
-
-  // ตรวจสอบที่อยู่ปัจจุบัน
-  if (data.currentAddress && data.currentAddress.length < 10) {
-    errors.push('ที่อยู่ปัจจุบันต้องมีอย่างน้อย 10 ตัวอักษร');
-  }
-
-  // ตรวจสอบเบอร์โทรศัพท์
-  if (data.phoneNumber && !/^0[0-9]{9}$/.test(data.phoneNumber)) {
-    errors.push('เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 10 หลัก)');
-  }
-
-  // ตรวจสอบอีเมล
-  if (data.email && !validator.isEmail(data.email)) {
-    errors.push('อีเมลไม่ถูกต้อง');
-  }
-
-  // ตรวจสอบรายได้รายเดือน
-  if (data.monthlyIncome) {
-    const income = parseFloat(data.monthlyIncome);
-    if (isNaN(income) || income < 0 || income > 1000000) {
-      errors.push('รายได้รายเดือนไม่ถูกต้อง');
-    }
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors: errors
-  };
-}
+// ...existing code...
