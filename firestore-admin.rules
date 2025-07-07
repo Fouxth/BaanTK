@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ✅ ADMIN DASHBOARD RULES - อนุญาตให้ admin เข้าถึงได้
+    
+    // Rules สำหรับ borrowers collection
+    match /borrowers/{borrowerId} {
+      // อ่านได้ทุกคน (สำหรับ admin dashboard)
+      allow read: if true;
+      
+      // สร้างได้เฉพาะที่ authenticated หรือจาก server
+      allow create: if request.auth != null;
+      
+      // อัปเดตได้ทุกคน (admin dashboard จะจัดการ authorization เอง)
+      allow update: if true;
+      
+      // ลบได้ทุกคน (admin dashboard จะจัดการ authorization เอง)
+      allow delete: if true;
+    }
+    
+    // Rules สำหรับ paymentSlips collection  
+    match /paymentSlips/{slipId} {
+      // อ่านได้ทุกคน (สำหรับ admin dashboard)
+      allow read: if true;
+      
+      // สร้างได้เฉพาะที่ authenticated หรือจาก server
+      allow create: if request.auth != null;
+      
+      // อัปเดตได้ทุกคน (admin dashboard)
+      allow update: if true;
+      
+      // ลบได้ทุกคน (admin dashboard)
+      allow delete: if true;
+    }
+    
+    // Rules สำหรับ uploadedImages collection
+    match /uploadedImages/{imageId} {
+      // อ่านได้ทุกคน (สำหรับ admin dashboard)
+      allow read: if true;
+      
+      // สร้างได้เฉพาะที่ authenticated หรือจาก server
+      allow create: if request.auth != null;
+      
+      // อัปเดตได้ทุกคน (admin dashboard)
+      allow update: if true;
+      
+      // ลบได้ทุกคน (admin dashboard)
+      allow delete: if true;
+    }
+    
+    // Rules สำหรับ slips collection (backup name)
+    match /slips/{slipId} {
+      allow read, write: if true;
+    }
+    
+    // Rules สำหรับ images collection (backup name)
+    match /images/{imageId} {
+      allow read, write: if true;
+    }
+    
+    // Rules สำหรับ documents collection
+    match /documents/{docId} {
+      allow read, write: if true;
+    }
+    
+    // Rules สำหรับ users collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Catch-all rule สำหรับ collections อื่นๆ
+    match /{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

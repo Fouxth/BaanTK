@@ -1,345 +1,169 @@
-// Production-grade Input Validation Module
-const joi = require("joi");
-const validator = require("validator");
+// 🔍 Input Validation Service Module
+const governmentAPI = require("./governmentAPI");
 
 class ValidationService {
-  // Thai ID Card validation schema
-  getThaiIDSchema() {
-    return joi.string()
-      .length(13)
-      .pattern(/^\d+$/)
-      .custom((value, helpers) => {
-        if (!this.validateThaiIDChecksum(value)) {
-          return helpers.error("thaiId.invalid");
-        }
-        return value;
-      })
-      .messages({
-        "thaiId.invalid": "รหัสบัตรประชาชนไม่ถูกต้อง"
-      });
-  }
-
-  // Registration validation schema
-  getRegistrationSchema() {
-    return joi.object({
-      firstName: joi.string()
-        .trim()
-        .min(2)
-        .max(50)
-        .pattern(/^[ก-๙a-zA-Z\s]+$/)
-        .required()
-        .messages({
-          "string.pattern.base": "ชื่อต้องเป็นภาษาไทยหรืออังกฤษเท่านั้น",
-          "string.min": "ชื่อต้องมีอย่างน้อย 2 ตัวอักษร",
-          "string.max": "ชื่อต้องไม่เกิน 50 ตัวอักษร"
-        }),
-
-      lastName: joi.string()
-        .trim()
-        .min(2)
-        .max(50)
-        .pattern(/^[ก-๙a-zA-Z\s]+$/)
-        .required()
-        .messages({
-          "string.pattern.base": "นามสกุลต้องเป็นภาษาไทยหรืออังกฤษเท่านั้น",
-          "string.min": "นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร",
-          "string.max": "นามสกุลต้องไม่เกิน 50 ตัวอักษร"
-        }),
-
-      birthDate: joi.string()
-        .pattern(/^\d{2}\/\d{2}\/\d{4}$/)
-        .custom((value, helpers) => {
-          const age = this.calculateAge(value);
-          if (age < 18 || age > 80) {
-            return helpers.error("age.invalid");
-          }
-          return value;
-        })
-        .required()
-        .messages({
-          "string.pattern.base": "วันเกิดต้องอยู่ในรูปแบบ DD/MM/YYYY",
-          "age.invalid": "อายุต้องอยู่ระหว่าง 18-80 ปี"
-        }),
-
-      idCard: this.getThaiIDSchema().required(),
-
-      address: joi.string()
-        .trim()
-        .min(10)
-        .max(200)
-        .required()
-        .messages({
-          "string.min": "ที่อยู่ต้องมีอย่างน้อย 10 ตัวอักษร",
-          "string.max": "ที่อยู่ต้องไม่เกิน 200 ตัวอักษร"
-        }),
-
-      // ที่อยู่ตามบัตรประชาชน
-      addressOnId: joi.string()
-        .trim()
-        .min(10)
-        .max(200)
-        .optional()
-        .messages({
-          "string.min": "ที่อยู่ตามบัตรต้องมีอย่างน้อย 10 ตัวอักษร",
-          "string.max": "ที่อยู่ตามบัตรต้องไม่เกิน 200 ตัวอักษร"
-        }),
-
-      // ที่อยู่ปัจจุบัน
-      currentAddress: joi.string()
-        .trim()
-        .min(10)
-        .max(200)
-        .optional()
-        .messages({
-          "string.min": "ที่อยู่ปัจจุบันต้องมีอย่างน้อย 10 ตัวอักษร",
-          "string.max": "ที่อยู่ปัจจุบันต้องไม่เกิน 200 ตัวอักษร"
-        }),
-
-      // รูปบัตรประชาชน
-      idCardImage: joi.string()
-        .optional()
-        .custom((value, helpers) => {
-          if (value && !value.startsWith("data:image/")) {
-            return helpers.error("image.invalid");
-          }
-          return value;
-        })
-        .messages({
-          "image.invalid": "รูปบัตรประชาชนไม่ถูกต้อง"
-        }),
-
-      idCardImageName: joi.string().optional(),
-      idCardImageSize: joi.number().optional(),
-
-      // รูปถ่ายผู้กู้
-      selfieImage: joi.string()
-        .optional()
-        .custom((value, helpers) => {
-          if (value && !value.startsWith("data:image/")) {
-            return helpers.error("image.invalid");
-          }
-          return value;
-        })
-        .messages({
-          "image.invalid": "รูปถ่ายผู้กู้ไม่ถูกต้อง"
-        }),
-
-      selfieImageName: joi.string().optional(),
-      selfieImageSize: joi.number().optional(),
-
-      amount: joi.number()
-        .min(100)
-        .max(50000)
-        .required()
-        .messages({
-          "number.min": "จำนวนเงินกู้ต้องไม่น้อยกว่า 100 บาท",
-          "number.max": "จำนวนเงินกู้ต้องไม่เกิน 50,000 บาท"
-        }),
-
-      frequency: joi.string()
-        .valid("daily", "weekly", "monthly")
-        .required()
-        .messages({
-          "any.only": "ระยะเวลาชำระต้องเป็น daily, weekly, หรือ monthly เท่านั้น"
-        }),
-
-      userId: joi.string()
-        .trim()
-        .min(10)
-        .max(100)
-        .required()
-        .messages({
-          "string.min": "User ID ไม่ถูกต้อง",
-          "string.max": "User ID ไม่ถูกต้อง"
-        }),
-
-      phoneNumber: joi.string()
-        .pattern(/^0[0-9]{9}$/)
-        .optional()
-        .messages({
-          "string.pattern.base": "เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 10 หลัก)"
-        }),
-
-      email: joi.string()
-        .email()
-        .optional()
-        .messages({
-          "string.email": "อีเมลไม่ถูกต้อง"
-        })
-    });
-  }
-
-  // Admin action validation schema
-  getAdminActionSchema() {
-    return joi.object({
-      borrowerId: joi.string()
-        .trim()
-        .required()
-        .messages({
-          "string.empty": "Borrower ID is required"
-        }),
-
-      action: joi.string()
-        .valid("approve", "reject")
-        .required()
-        .messages({
-          "any.only": "Action must be approve or reject"
-        }),
-
-      notes: joi.string()
-        .max(500)
-        .optional()
-        .messages({
-          "string.max": "Notes must not exceed 500 characters"
-        })
-    });
-  }
-
-  // Blacklist validation schema
-  getBlacklistSchema() {
-    return joi.object({
-      idCard: joi.string()
-        .length(13)
-        .pattern(/^\d+$/)
-        .optional(),
-
-      userId: joi.string()
-        .trim()
-        .min(5)
-        .optional(),
-
-      reason: joi.string()
-        .max(200)
-        .required()
-        .messages({
-          "string.max": "Reason must not exceed 200 characters"
-        }),
-
-      firstName: joi.string()
-        .max(50)
-        .optional(),
-
-      lastName: joi.string()
-        .max(50)
-        .optional()
-    }).or("idCard", "userId")
-      .messages({
-        "object.missing": "Either idCard or userId must be provided"
-      });
-  }
-
-  // Validate Thai ID Card checksum
-  validateThaiIDChecksum(idCard) {
-    if (idCard.length !== 13) return false;
-
-    let sum = 0;
-    for (let i = 0; i < 12; i++) {
-      sum += parseInt(idCard[i]) * (13 - i);
-    }
-
-    const checkDigit = (11 - (sum % 11)) % 10;
-    return checkDigit === parseInt(idCard[12]);
-  }
-
-  // Calculate age from birth date string (DD/MM/YYYY)
-  calculateAge(birthDateString) {
-    const [day, month, year] = birthDateString.split("/").map(Number);
-    const birthDate = new Date(year, month - 1, day);
-    const today = new Date();
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
-  }
-
-  // Sanitize input to prevent XSS
-  sanitizeInput(input) {
-    if (typeof input === "string") {
-      return validator.escape(input.trim());
-    }
-
-    if (typeof input === "object" && input !== null) {
-      const sanitized = {};
-      for (const [key, value] of Object.entries(input)) {
-        sanitized[key] = this.sanitizeInput(value);
-      }
-      return sanitized;
-    }
-
-    return input;
-  }
-
-  // Validate and sanitize registration data
+  // Validate registration input
   validateRegistration(data) {
-    const schema = this.getRegistrationSchema();
-    const { error, value } = schema.validate(data, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+    const errors = [];
+    const sanitized = {};
 
-    if (error) {
-      return {
-        isValid: false,
-        errors: error.details.map((detail) => detail.message),
-        data: null
-      };
+    // Required fields validation - ปรับให้รองรับ addressOnId และ currentAddress
+    const requiredFields = ["firstName", "lastName", "birthDate", "idCard", "amount", "frequency", "userId"];
+    for (const field of requiredFields) {
+      if (!data[field] || String(data[field]).trim() === "") {
+        errors.push(`${field} is required`);
+      }
     }
+
+    // Check address - accept either 'address', 'addressOnId', or 'currentAddress'
+    if (!data.address && !data.addressOnId && !data.currentAddress) {
+      errors.push("address is required");
+    }
+
+    if (errors.length > 0) {
+      return { isValid: false, errors, data: null };
+    }
+
+    // Sanitize and validate each field
+    sanitized.firstName = String(data.firstName).trim().substring(0, 50);
+    sanitized.lastName = String(data.lastName).trim().substring(0, 50);
+    
+    // Handle address fields - use addressOnId as primary, fallback to currentAddress or address
+    sanitized.address = String(data.addressOnId || data.currentAddress || data.address).trim().substring(0, 200);
+    sanitized.addressOnId = data.addressOnId ? String(data.addressOnId).trim().substring(0, 200) : sanitized.address;
+    sanitized.currentAddress = data.currentAddress ? String(data.currentAddress).trim().substring(0, 200) : sanitized.address;
+    
+    sanitized.userId = String(data.userId).trim();
+
+    // Validate Thai ID Card (13 digits + checksum)
+    const idCard = String(data.idCard).replace(/\D/g, "");
+    if (idCard.length !== 13) {
+      errors.push("เลขบัตรประชาชนต้องมี 13 หลัก");
+    }
+    sanitized.idCard = idCard;
+
+    // Validate birth date - รองรับทั้ง DD/MM/YYYY และ YYYY-MM-DD
+    let birthDateMatch = String(data.birthDate).match(/^(\d{2})\/(\d{2})\/(\d{4})$/); // DD/MM/YYYY
+    let day, month, year;
+    
+    if (!birthDateMatch) {
+      // ลองรูปแบบ YYYY-MM-DD (HTML date input)
+      const isoDateMatch = String(data.birthDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (isoDateMatch) {
+        [, year, month, day] = isoDateMatch;
+        birthDateMatch = true; // set flag to proceed with validation
+      } else {
+        errors.push("วันเกิดต้องอยู่ในรูปแบบ DD/MM/YYYY หรือ YYYY-MM-DD");
+      }
+    } else {
+      [, day, month, year] = birthDateMatch;
+    }
+    
+    if (birthDateMatch) {
+      const birthDate = new Date(year, month - 1, day);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      
+      // Adjust age if birthday hasn't occurred this year
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
+      if (age < 18 || age > 80) {
+        errors.push("อายุต้องอยู่ระหว่าง 18-80 ปี");
+      }
+      sanitized.birthDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+    }
+
+    // Validate loan amount
+    const amount = parseFloat(data.amount);
+    if (isNaN(amount) || amount < 100 || amount > 50000) {
+      errors.push("จำนวนเงินกู้ต้องอยู่ระหว่าง 100-50,000 บาท");
+    }
+    sanitized.amount = amount;
+
+    // Validate frequency
+    if (!["daily", "weekly", "monthly"].includes(data.frequency)) {
+      errors.push("ความถี่การชำระไม่ถูกต้อง");
+    }
+    sanitized.frequency = data.frequency;
+
+    // Copy other fields
+    Object.keys(data).forEach(key => {
+      if (!sanitized.hasOwnProperty(key) && data[key] !== undefined) {
+        sanitized[key] = data[key];
+      }
+    });
 
     return {
-      isValid: true,
-      errors: [],
-      data: this.sanitizeInput(value)
+      isValid: errors.length === 0,
+      errors,
+      data: errors.length === 0 ? sanitized : null
+    };
+  }
+
+  // Validate blacklist input
+  validateBlacklist(data) {
+    const errors = [];
+    const sanitized = {};
+
+    // Must have either idCard or userId
+    if (!data.idCard && !data.userId) {
+      errors.push("ต้องระบุเลขบัตรประชาชนหรือ User ID");
+    }
+
+    if (data.idCard) {
+      const idCard = String(data.idCard).replace(/\D/g, "");
+      if (idCard.length !== 13) {
+        errors.push("เลขบัตรประชาชนต้องมี 13 หลัก");
+      }
+      sanitized.idCard = idCard;
+    }
+
+    if (data.userId) {
+      sanitized.userId = String(data.userId).trim();
+    }
+
+    if (!data.reason || String(data.reason).trim() === "") {
+      errors.push("ต้องระบุเหตุผลในการเพิ่มเข้าบัญชีดำ");
+    } else {
+      sanitized.reason = String(data.reason).trim().substring(0, 500);
+    }
+
+    sanitized.firstName = data.firstName ? String(data.firstName).trim().substring(0, 50) : "";
+    sanitized.lastName = data.lastName ? String(data.lastName).trim().substring(0, 50) : "";
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      data: errors.length === 0 ? sanitized : null
     };
   }
 
   // Validate admin action
   validateAdminAction(data) {
-    const schema = this.getAdminActionSchema();
-    const { error, value } = schema.validate(data, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+    const errors = [];
+    const sanitized = {};
 
-    if (error) {
-      return {
-        isValid: false,
-        errors: error.details.map((detail) => detail.message),
-        data: null
-      };
+    if (!data.borrowerId || String(data.borrowerId).trim() === "") {
+      errors.push("ต้องระบุ Borrower ID");
+    } else {
+      sanitized.borrowerId = String(data.borrowerId).trim();
     }
 
-    return {
-      isValid: true,
-      errors: [],
-      data: this.sanitizeInput(value)
-    };
-  }
-
-  // Validate blacklist data
-  validateBlacklist(data) {
-    const schema = this.getBlacklistSchema();
-    const { error, value } = schema.validate(data, {
-      abortEarly: false,
-      stripUnknown: true
-    });
-
-    if (error) {
-      return {
-        isValid: false,
-        errors: error.details.map((detail) => detail.message),
-        data: null
-      };
+    if (!data.action || !["approve", "reject"].includes(data.action)) {
+      errors.push("การดำเนินการต้องเป็น approve หรือ reject");
+    } else {
+      sanitized.action = data.action;
     }
 
+    sanitized.notes = data.notes ? String(data.notes).trim().substring(0, 1000) : "";
+
     return {
-      isValid: true,
-      errors: [],
-      data: this.sanitizeInput(value)
+      isValid: errors.length === 0,
+      errors,
+      data: errors.length === 0 ? sanitized : null
     };
   }
 
@@ -356,30 +180,52 @@ class ValidationService {
 
   // Validate date range
   validateDateRange(startDate, endDate) {
-    if (!startDate && !endDate) {
-      return { isValid: true, start: null, end: null };
+    const result = { isValid: true, start: null, end: null };
+
+    if (startDate) {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return { isValid: false, error: "วันที่เริ่มต้นไม่ถูกต้อง" };
+      }
+      result.start = start;
     }
 
-    try {
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
-
-      if (start && isNaN(start.getTime())) {
-        return { isValid: false, error: "Invalid start date" };
+    if (endDate) {
+      const end = new Date(endDate);
+      if (isNaN(end.getTime())) {
+        return { isValid: false, error: "วันที่สิ้นสุดไม่ถูกต้อง" };
       }
-
-      if (end && isNaN(end.getTime())) {
-        return { isValid: false, error: "Invalid end date" };
-      }
-
-      if (start && end && start > end) {
-        return { isValid: false, error: "Start date must be before end date" };
-      }
-
-      return { isValid: true, start, end };
-    } catch (error) {
-      return { isValid: false, error: "Invalid date format" };
+      result.end = end;
     }
+
+    if (result.start && result.end && result.start > result.end) {
+      return { isValid: false, error: "วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด" };
+    }
+
+    return result;
+  }
+
+  // Validate email format
+  validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  // Validate phone number (Thai format)
+  validateThaiPhone(phone) {
+    const phoneRegex = /^(\+66|0)[0-9]{8,9}$/;
+    return phoneRegex.test(phone);
+  }
+
+  // Sanitize HTML input
+  sanitizeHtml(input) {
+    if (!input) return "";
+    return String(input)
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;")
+      .replace(/\//g, "&#x2F;");
   }
 }
 

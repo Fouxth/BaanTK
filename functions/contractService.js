@@ -1,242 +1,258 @@
-/**
- * Digital Contract Service - ระบบสัญญาอิเล็กทรอนิกส์
- * สร้างสัญญาตามกฎหมายและจัดการการยืนยัน
- */
-
+// 📄 Contract Generation and Management Service
 const admin = require("firebase-admin");
+const { v4: uuidv4 } = require("uuid");
 
 class ContractService {
-  /**
-   * สร้างสัญญาดิจิทัล
-   */
-  static generateContract(borrowerData, loanTerms, settings) {
-    const contractData = {
-      contractId: `CONTRACT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  constructor() {
+    this.contractVersion = "2.0";
+  }
+
+  // Generate contract data
+  generateContract(borrowerData, loanTerms, settings = {}) {
+    const contractId = uuidv4();
+    const today = new Date();
+    
+    return {
+      contractId: contractId,
+      version: this.contractVersion,
+      borrowerId: borrowerData.id || borrowerData.borrowerId,
+      
+      // Borrower information
       borrower: {
-        fullName: `${borrowerData.firstName} ${borrowerData.lastName}`,
+        name: `${borrowerData.firstName} ${borrowerData.lastName}`,
         idCard: borrowerData.idCard,
-        address: borrowerData.currentAddress || borrowerData.address,
-        birthDate: borrowerData.birthDate
+        address: borrowerData.address,
+        userId: borrowerData.userId
       },
+      
+      // Loan terms
       loan: {
-        principal: loanTerms.principalAmount || borrowerData.amount,
+        principal: loanTerms.principal,
         interestRate: loanTerms.interestRate,
         totalAmount: loanTerms.totalWithInterest,
-        frequency: borrowerData.frequency,
-        dueDate: loanTerms.dueDate,
-        installmentAmount: loanTerms.installmentAmount
+        installmentAmount: loanTerms.installmentAmount,
+        installments: loanTerms.installments,
+        frequency: loanTerms.frequency,
+        startDate: today.toISOString(),
+        dueDate: loanTerms.dueDate.toISOString()
       },
-      terms: this.generateLegalTerms(borrowerData, loanTerms, settings),
-      createdAt: new Date().toISOString(),
-      status: "pending_signature"
-    };
-
-    return contractData;
-  }
-
-  /**
-   * สร้างข้อกำหนดตามกฎหมาย
-   */
-  static generateLegalTerms(borrowerData, loanTerms, settings) {
-    const interestRatePercent = (loanTerms.interestRate * 100).toFixed(2);
-    const frequencyText = this.getFrequencyText(borrowerData.frequency);
-
-    return {
-      article1: {
-        title: "ข้อที่ 1 การให้กู้เงิน",
-        content: `ผู้ให้กู้ตกลงให้ผู้กู้กู้เงินจำนวน ${borrowerData.amount.toLocaleString()} บาท (${this.numberToThaiText(borrowerData.amount)}) โดยผู้กู้ได้รับเงินครบถ้วนแล้ว`
+      
+      // Legal terms
+      terms: this.generateLegalTerms(loanTerms, settings),
+      
+      // Contract status
+      status: "pending_signature",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      
+      // Signature fields
+      signatures: {
+        borrower: null,
+        lender: null
       },
-      article2: {
-        title: "ข้อที่ 2 อัตราดอกเบี้ย",
-        content: `ผู้กู้ตกลงชำระดอกเบี้ยในอัตรา ${interestRatePercent}% ต่อ ${frequencyText} ซึ่งเป็นอัตราที่กฎหมายอนุญาต`
-      },
-      article3: {
-        title: "ข้อที่ 3 การชำระหนี้",
-        content: `ผู้กู้จะชำระหนี้ ${frequencyText} ในอัตรา ${loanTerms.installmentAmount.toLocaleString()} บาท จนครบจำนวน ${loanTerms.totalWithInterest.toLocaleString()} บาท`
-      },
-      article4: {
-        title: "ข้อที่ 4 การผิดนัด",
-        content: "หากผู้กู้ผิดนัดชำระหนี้เกิน 7 วัน ผู้ให้กู้มีสิทธิเรียกร้องให้ชำระหนี้ทั้งหมดทันที"
-      },
-      article5: {
-        title: "ข้อที่ 5 การคุ้มครองข้อมูล",
-        content: "ผู้ให้กู้จะเก็บรักษาข้อมูลส่วนบุคคลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562"
-      },
-      legalBasis: "สัญญานี้จัดทำตามประมวลกฎหมายแพ่งและพาณิชย์ มาตรา 648-679 และพระราชบัญญัติการให้เงินกู้ที่เป็นการเพิ่มทุนให้แก่เกษตรกรและผู้ประกอบการรายย่อย พ.ศ. 2560"
-    };
-  }
-
-  /**
-   * แปลงตัวเลขเป็นข้อความไทย
-   */
-  static numberToThaiText(number) {
-    const ones = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
-    const tens = ["", "", "ยี่", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
-    const positions = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
-
-    if (number === 0) return "ศูนย์";
-
-    const str = number.toString();
-    const result = "";
-
-    // Simple implementation for common numbers
-    if (number < 10) return ones[number];
-    if (number >= 1000000) return `${Math.floor(number/1000000)}ล้าน${number%1000000 > 0 ? this.numberToThaiText(number%1000000) : ""}`;
-    if (number >= 1000) return `${this.numberToThaiText(Math.floor(number/1000))}พัน${number%1000 > 0 ? this.numberToThaiText(number%1000) : ""}`;
-    if (number >= 100) return `${ones[Math.floor(number/100)]}ร้อย${number%100 > 0 ? this.numberToThaiText(number%100) : ""}`;
-    if (number >= 20) return `${tens[Math.floor(number/10)]}สิบ${number%10 > 0 ? ones[number%10] : ""}`;
-    if (number >= 10) return `หนึ่งสิบ${number%10 > 0 ? ones[number%10] : ""}`;
-
-    return ones[number];
-  }
-
-  /**
-   * แปลงความถี่เป็นข้อความไทย
-   */
-  static getFrequencyText(frequency) {
-    const frequencies = {
-      daily: "วัน",
-      weekly: "สัปดาห์",
-      monthly: "เดือน"
-    };
-    return frequencies[frequency] || "เดือน";
-  }
-
-  /**
-   * สร้าง HTML สัญญา
-   */
-  static generateContractHTML(contractData) {
-    return `
-    <!DOCTYPE html>
-    <html lang="th">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>สัญญาเงินกู้ออนไลน์</title>
-        <style>
-            body { font-family: 'Sarabun', sans-serif; line-height: 1.6; margin: 20px; }
-            .contract-header { text-align: center; margin-bottom: 30px; }
-            .contract-content { max-width: 800px; margin: 0 auto; }
-            .article { margin-bottom: 20px; }
-            .article-title { font-weight: bold; color: #2563eb; }
-            .signature-area { margin-top: 50px; display: flex; justify-content: space-between; }
-            .signature-box { border: 1px solid #ccc; padding: 20px; width: 300px; text-align: center; }
-            .contract-id { font-size: 12px; color: #666; text-align: center; margin-top: 20px; }
-            @media print { body { margin: 0; } }
-        </style>
-    </head>
-    <body>
-        <div class="contract-content">
-            <div class="contract-header">
-                <h1>สัญญาเงินกู้ออนไลน์</h1>
-                <p>เลขที่สัญญา: ${contractData.contractId}</p>
-                <p>วันที่: ${new Date().toLocaleDateString("th-TH")}</p>
-            </div>
-
-            <p><strong>ผู้ให้กู้:</strong> บริษัท บ้านทีเค จำกัด</p>
-            <p><strong>ผู้กู้:</strong> ${contractData.borrower.fullName}</p>
-            <p><strong>เลขบัตรประชาชน:</strong> ${contractData.borrower.idCard}</p>
-            <p><strong>ที่อยู่:</strong> ${contractData.borrower.address}</p>
-
-            <div class="article">
-                <div class="article-title">${contractData.terms.article1.title}</div>
-                <p>${contractData.terms.article1.content}</p>
-            </div>
-
-            <div class="article">
-                <div class="article-title">${contractData.terms.article2.title}</div>
-                <p>${contractData.terms.article2.content}</p>
-            </div>
-
-            <div class="article">
-                <div class="article-title">${contractData.terms.article3.title}</div>
-                <p>${contractData.terms.article3.content}</p>
-            </div>
-
-            <div class="article">
-                <div class="article-title">${contractData.terms.article4.title}</div>
-                <p>${contractData.terms.article4.content}</p>
-            </div>
-
-            <div class="article">
-                <div class="article-title">${contractData.terms.article5.title}</div>
-                <p>${contractData.terms.article5.content}</p>
-            </div>
-
-            <p><strong>ข้อกำหนดทางกฎหมาย:</strong> ${contractData.terms.legalBasis}</p>
-
-            <div class="signature-area">
-                <div class="signature-box">
-                    <p>ผู้ให้กู้</p>
-                    <br><br><br>
-                    <p>................................</p>
-                    <p>บริษัท บ้านทีเค จำกัด</p>
-                </div>
-                <div class="signature-box">
-                    <p>ผู้กู้</p>
-                    <br><br><br>
-                    <p>................................</p>
-                    <p>${contractData.borrower.fullName}</p>
-                </div>
-            </div>
-
-            <div class="contract-id">
-                <p>สัญญาอิเล็กทรอนิกส์ - ระบบ BaanTK</p>
-                <p>สร้างเมื่อ: ${contractData.createdAt}</p>
-            </div>
-        </div>
-    </body>
-    </html>`;
-  }
-
-  /**
-   * บันทึกสัญญาลง Database
-   */
-  static async saveContract(contractData, borrowerId) {
-    try {
-      const docRef = await admin.firestore().collection("contracts").add({
-        ...contractData,
-        borrowerId,
-        signedAt: null,
+      
+      // Additional metadata
+      metadata: {
+        generatedBy: "system",
         ipAddress: null,
         userAgent: null
-      });
+      }
+    };
+  }
 
-      console.log(`📄 Contract created: ${docRef.id}`);
-      return docRef.id;
+  // Generate legal terms and conditions
+  generateLegalTerms(loanTerms, settings) {
+    const frequencyText = this.getFrequencyText(loanTerms.frequency);
+    
+    return {
+      title: "สัญญาเงินกู้ BaanTK",
+      clauses: [
+        {
+          section: "1. ข้อมูลเงินกู้",
+          content: `ผู้กู้ตกลงกู้เงินจำนวน ${loanTerms.principal.toLocaleString()} บาท โดยมีดอกเบี้ย ${(loanTerms.interestRate * 100).toFixed(2)}% ต่อปี`
+        },
+        {
+          section: "2. การชำระเงิน",
+          content: `ผู้กู้ตกลงชำระเงินงวดละ ${loanTerms.installmentAmount.toLocaleString()} บาท ${frequencyText} รวม ${loanTerms.installments} งวด`
+        },
+        {
+          section: "3. เงื่อนไขการผิดนัด",
+          content: "หากผู้กู้ผิดนัดการชำระเงินเกิน 7 วัน ผู้ให้กู้มีสิทธิ์เรียกเงินต้นและดอกเบี้ยคืนทั้งหมดทันที"
+        },
+        {
+          section: "4. การยกเลิกสัญญา",
+          content: "ผู้กู้สามารถชำระเงินก่อนกำหนดได้โดยไม่มีค่าปรับ"
+        },
+        {
+          section: "5. ข้อตกลงทั่วไป",
+          content: "สัญญานี้อยู่ภายใต้กฎหมายไทย และข้อพิพาทจะได้รับการระงับโดยการไกล่เกลี่ย"
+        }
+      ],
+      acceptanceText: "ข้าพเจ้าได้อ่านและเข้าใจเงื่อนไขทั้งหมดแล้ว และยินยอมผูกพันตามสัญญานี้",
+      signatureDate: new Date().toLocaleDateString("th-TH"),
+      effectiveDate: new Date().toLocaleDateString("th-TH")
+    };
+  }
+
+  // Get frequency text in Thai
+  getFrequencyText(frequency) {
+    const frequencyMap = {
+      daily: "ทุกวัน",
+      weekly: "ทุกสัปดาห์", 
+      monthly: "ทุกเดือน"
+    };
+    return frequencyMap[frequency] || "ตามกำหนด";
+  }
+
+  // Save contract to database
+  async saveContract(contractData, borrowerId) {
+    try {
+      const db = admin.firestore();
+      
+      // Save contract
+      const contractRef = await db.collection("contracts").add(contractData);
+      
+      // Update borrower with contract reference
+      if (borrowerId) {
+        await db.collection("borrowers").doc(borrowerId).update({
+          contractId: contractRef.id,
+          contractGenerated: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      
+      console.log(`📄 Contract saved: ${contractRef.id}`);
+      return contractRef.id;
     } catch (error) {
       console.error("Error saving contract:", error);
       throw error;
     }
   }
 
-  /**
-   * ยืนยันการลงนามสัญญา
-   */
-  static async signContract(contractId, borrowerId, signatureData, req) {
+  // Sign contract
+  async signContract(contractId, borrowerId, signatureData, req = null) {
     try {
-      await admin.firestore().collection("contracts").doc(contractId).update({
+      const db = admin.firestore();
+      const contractRef = db.collection("contracts").doc(contractId);
+      
+      const updateData = {
+        "signatures.borrower": {
+          signature: signatureData.signature,
+          timestamp: signatureData.timestamp || admin.firestore.FieldValue.serverTimestamp(),
+          ipAddress: signatureData.ipAddress || req?.ip,
+          userAgent: signatureData.userAgent || req?.get("User-Agent")
+        },
         status: "signed",
         signedAt: admin.firestore.FieldValue.serverTimestamp(),
-        signatureData,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent")
-      });
-
-      // อัพเดทสถานะผู้กู้
-      await admin.firestore().collection("borrowers").doc(borrowerId).update({
-        contractSigned: true,
-        contractId,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      console.log(`✅ Contract signed: ${contractId}`);
+      };
+      
+      await contractRef.update(updateData);
+      
+      console.log(`✍️ Contract signed: ${contractId}`);
       return true;
     } catch (error) {
       console.error("Error signing contract:", error);
       throw error;
     }
   }
+
+  // Generate contract HTML for display/printing
+  generateContractHTML(contractData) {
+    const { borrower, loan, terms } = contractData;
+    
+    return `
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>สัญญาเงินกู้ - ${contractData.contractId}</title>
+        <style>
+            body { font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; margin: 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .section { margin-bottom: 20px; }
+            .signature-area { margin-top: 50px; display: flex; justify-content: space-between; }
+            .signature-box { width: 200px; text-align: center; border-top: 1px solid #000; padding-top: 10px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>${terms.title}</h1>
+            <p>เลขที่สัญญา: ${contractData.contractId}</p>
+            <p>วันที่: ${terms.signatureDate}</p>
+        </div>
+        
+        <div class="section">
+            <h3>ข้อมูลผู้กู้</h3>
+            <p><strong>ชื่อ:</strong> ${borrower.name}</p>
+            <p><strong>เลขบัตรประชาชน:</strong> ${borrower.idCard}</p>
+            <p><strong>ที่อยู่:</strong> ${borrower.address}</p>
+        </div>
+        
+        <div class="section">
+            <h3>รายละเอียดเงินกู้</h3>
+            <table>
+                <tr><th>รายการ</th><th>จำนวน</th></tr>
+                <tr><td>เงินต้น</td><td>${loan.principal.toLocaleString()} บาท</td></tr>
+                <tr><td>อัตราดอกเบี้ย</td><td>${(loan.interestRate * 100).toFixed(2)}% ต่อปี</td></tr>
+                <tr><td>จำนวนเงินรวม</td><td>${loan.totalAmount.toLocaleString()} บาท</td></tr>
+                <tr><td>ชำระงวดละ</td><td>${loan.installmentAmount.toLocaleString()} บาท</td></tr>
+                <tr><td>จำนวนงวด</td><td>${loan.installments} งวด</td></tr>
+                <tr><td>ความถี่การชำระ</td><td>${this.getFrequencyText(loan.frequency)}</td></tr>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h3>เงื่อนไขและข้อตกลง</h3>
+            ${terms.clauses.map(clause => `
+                <div style="margin-bottom: 15px;">
+                    <strong>${clause.section}</strong><br>
+                    ${clause.content}
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="section">
+            <p><strong>การยอมรับเงื่อนไข:</strong></p>
+            <p>${terms.acceptanceText}</p>
+        </div>
+        
+        <div class="signature-area">
+            <div class="signature-box">
+                <p>ลายเซ็นผู้กู้</p>
+                <p>(${borrower.name})</p>
+            </div>
+            <div class="signature-box">
+                <p>ลายเซ็นผู้ให้กู้</p>
+                <p>(BaanTK)</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+  }
+
+  // Convert number to Thai text (for legal documents)
+  numberToThaiText(number) {
+    // Simplified version - in production, use a proper Thai number conversion library
+    const ones = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    const tens = ['', '', 'ยี่สิบ', 'สามสิบ', 'สี่สิบ', 'ห้าสิบ', 'หกสิบ', 'เจ็ดสิบ', 'แปดสิบ', 'เก้าสิบ'];
+    
+    if (number === 0) return 'ศูนย์';
+    if (number < 10) return ones[number];
+    if (number < 100) {
+      const ten = Math.floor(number / 10);
+      const one = number % 10;
+      return tens[ten] + ones[one];
+    }
+    
+    // For larger numbers, return the number as string
+    return number.toString();
+  }
 }
 
-module.exports = ContractService;
+module.exports = new ContractService();

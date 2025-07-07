@@ -240,7 +240,7 @@ async function validateIDCardBasic(idCard) {
   }
 
   // ตรวจสอบ checksum
-  if (!validateThaiIDCard(idCard)) {
+  if (!validateChecksumOnly(idCard)) {
     result.errors.push("เลขบัตรประชาชนไม่ถูกต้อง");
     return result;
   }

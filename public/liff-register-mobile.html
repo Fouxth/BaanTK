@@ -210,7 +210,7 @@
                                     
                                     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
                                         <p class="text-xs text-amber-800">
-                                            💡 <strong>คำแนะนำ:</strong> ถ่ายรูปบัตรประชาชนด้านหน้าให้ชัดเจน และถ่าย Selfie หน้าตรงสำหรับยืนยันตัวตน
+                                            💡 <strong>คำแนะนำ:</strong> อัปโหลดรูปบัตรประชาชนด้านหน้าและหน้าผู้กู้ให้ชัดเจน สำหรับยืนยันตัวตน
                                         </p>
                                     </div>
                                 </div>
@@ -464,7 +464,8 @@
             
             try {
                 const formData = new FormData(this);
-                formData.append('userId', userId);
+                const formObject = Object.fromEntries(formData);
+                formObject.userId = userId;
                 
                 // Convert images to base64 for submission
                 const imagePromises = uploadedImages.map(file => {
@@ -472,7 +473,7 @@
                         const reader = new FileReader();
                         reader.onload = () => resolve({
                             name: file.name,
-                            data: reader.result,
+                            base64: reader.result,
                             size: file.size
                         });
                         reader.readAsDataURL(file);
@@ -480,15 +481,37 @@
                 });
                 
                 const images = await Promise.all(imagePromises);
-                formData.append('images', JSON.stringify(images));
+                
+                // Add images to form data
+                if (images.length >= 1) {
+                    formObject.idCardImage = images[0].base64;
+                    formObject.idCardImageName = images[0].name;
+                    formObject.idCardImageSize = images[0].size;
+                }
+
+                if (images.length >= 2) {
+                    formObject.selfieImage = images[1].base64;
+                    formObject.selfieImageName = images[1].name;
+                    formObject.selfieImageSize = images[1].size;
+                } else if (images.length >= 1) {
+                    // If only one image, use it for both
+                    formObject.selfieImage = images[0].base64;
+                    formObject.selfieImageName = images[0].name;
+                    formObject.selfieImageSize = images[0].size;
+                }
+
+                // Set address field for backward compatibility
+                formObject.address = formObject.addressOnId || formObject.currentAddress;
+                
+                console.log('📤 ส่งข้อมูล:', formObject);
                 
                 // Submit to API
-                const response = await fetch('https://baan-tk.web.app/api/liff-register', {
+                const response = await fetch('/api/liff-register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(Object.fromEntries(formData))
+                    body: JSON.stringify(formObject)
                 });
                 
                 const result = await response.json();

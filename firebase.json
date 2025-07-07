@@ -8,7 +8,9 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log"
-      ]
+      ],
+      "runtime": "nodejs20",
+      "env": ".env.yaml"
     }
   ],
   "hosting": {
@@ -28,12 +30,24 @@
         "function": "webhook"
       },
       {
+        "source": "/api/admin/**",
+        "function": "adminApi"
+      },
+      {
         "source": "/api/**",
         "function": "webhook"
       },
       {
         "source": "/admin/**",
-        "destination": "/adminDashboard.html"
+        "destination": "/admin.html"
+      },
+      {
+        "source": "/liff-register",
+        "destination": "/liff-register.html"
+      },
+      {
+        "source": "/liff-register.html",
+        "destination": "/liff-register.html"
       },
       {
         "source": "**",
@@ -53,7 +67,7 @@
     ]
   },
   "firestore": {
-    "rules": "firestore.rules",
+    "rules": "firestore-admin.rules",
     "indexes": "firestore.indexes.json"
   },
   "storage": {
@@ -70,7 +84,7 @@
       "port": 8080
     },
     "hosting": {
-      "port": 5000
+      "port": 5002
     },
     "storage": {
       "port": 9199

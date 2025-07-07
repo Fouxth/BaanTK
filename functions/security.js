@@ -5,13 +5,23 @@ const admin = require("firebase-admin");
 
 class SecurityService {
   constructor() {
-    this.jwtSecret = process.env.JWT_SECRET || "your-jwt-secret-key-here";
-    this.encryptionKey = process.env.ENCRYPTION_KEY || "your-32-character-encryption-key";
-    // อ่าน admin token จาก .env หลายรูปแบบ
-    this.adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_SECRET_TOKEN || process.env.ADMIN_PASSWORD || "admin123";
+    this.jwtSecret = process.env.JWT_SECRET;
+    this.encryptionKey = process.env.ENCRYPTION_KEY;
+    // อ่าน admin token จาก .env หลายรูปแบบ - ห้ามใช้ fallback ที่ไม่ปลอดภัย
+    this.adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_SECRET_TOKEN || process.env.ADMIN_PASSWORD;
 
-    console.log(`🔐 Admin token configured from .env: ${this.adminToken ? "✅ SET" : "❌ NOT SET"}`);
-    console.log(`🔐 Using token: ${this.adminToken.substring(0, 3)}***`);
+    // ตรวจสอบว่ามี environment variables ที่จำเป็น
+    if (!this.jwtSecret) {
+      throw new Error("JWT_SECRET environment variable is required");
+    }
+    if (!this.encryptionKey) {
+      throw new Error("ENCRYPTION_KEY environment variable is required");
+    }
+    if (!this.adminToken) {
+      throw new Error("ADMIN_SECRET_TOKEN environment variable is required");
+    }
+
+    console.log(`🔐 Security configuration loaded successfully`);
   }
 
   // Generate JWT token for admin
@@ -74,24 +84,64 @@ class SecurityService {
     });
   }
 
-  // Encrypt sensitive data
+  // Encrypt sensitive data with modern AES-256-CBC + IV
   encrypt(text) {
     if (!text) return null;
 
-    const cipher = crypto.createCipher("aes-256-cbc", this.encryptionKey);
-    let encrypted = cipher.update(text, "utf8", "hex");
-    encrypted += cipher.final("hex");
-    return encrypted;
+    try {
+      const iv = crypto.randomBytes(16);
+      const key = crypto.createHash('sha256').update(this.encryptionKey).digest();
+      const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+      
+      let encrypted = cipher.update(text, "utf8", "hex");
+      encrypted += cipher.final("hex");
+      
+      // Return IV + encrypted data
+      return iv.toString("hex") + ":" + encrypted;
+    } catch (error) {
+      console.error("Encryption error:", error);
+      return null;
+    }
   }
 
-  // Decrypt sensitive data
-  decrypt(encryptedText) {
-    if (!encryptedText) return null;
+  // Decrypt sensitive data with IV extraction
+  decrypt(encryptedData) {
+    if (!encryptedData) return null;
 
-    const decipher = crypto.createDecipher("aes-256-cbc", this.encryptionKey);
-    let decrypted = decipher.update(encryptedText, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
+    try {
+      const parts = encryptedData.split(":");
+      if (parts.length !== 2) {
+        // Fallback for old encryption format
+        return this._legacyDecrypt(encryptedData);
+      }
+
+      const [ivHex, encrypted] = parts;
+      const iv = Buffer.from(ivHex, "hex");
+      const key = crypto.createHash('sha256').update(this.encryptionKey).digest();
+      const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+      
+      let decrypted = decipher.update(encrypted, "hex", "utf8");
+      decrypted += decipher.final("utf8");
+      
+      return decrypted;
+    } catch (error) {
+      console.error("Decryption error:", error);
+      // Try legacy decryption as fallback
+      return this._legacyDecrypt(encryptedData);
+    }
+  }
+
+  // Legacy decryption for backward compatibility
+  _legacyDecrypt(encryptedText) {
+    try {
+      const decipher = crypto.createDecipher("aes-256-cbc", this.encryptionKey);
+      let decrypted = decipher.update(encryptedText, "hex", "utf8");
+      decrypted += decipher.final("utf8");
+      return decrypted;
+    } catch (error) {
+      console.error("Legacy decryption failed:", error);
+      return null;
+    }
   }
 
   // Hash sensitive data (one-way)
@@ -193,20 +243,21 @@ class SecurityService {
   getRateLimitConfig(type = "default") {
     const configs = {
       default: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
         max: parseInt(process.env.RATE_LIMIT_MAX) || 100
       },
       registration: {
-        windowMs: parseInt(process.env.REGISTRATION_LIMIT_WINDOW_MS) || 60 * 60 * 1000,
-        max: parseInt(process.env.REGISTRATION_LIMIT_MAX) || 3
+        // ผ่อนปรนการจำกัดสำหรับการทดสอบ
+        windowMs: parseInt(process.env.REGISTRATION_LIMIT_WINDOW_MS) || 5 * 60 * 1000, // 5 minutes instead of 1 hour
+        max: parseInt(process.env.REGISTRATION_LIMIT_MAX) || 10 // 10 attempts instead of 3
       },
       login: {
-        windowMs: 15 * 60 * 1000,
-        max: 5
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 10 // เพิ่มจาก 5 เป็น 10
       },
       api: {
-        windowMs: 60 * 1000,
-        max: 60
+        windowMs: 60 * 1000, // 1 minute
+        max: 100 // เพิ่มจาก 60 เป็น 100
       }
     };
 

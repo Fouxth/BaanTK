@@ -227,27 +227,34 @@ class CreditScoringService {
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      // Check recent applications
+      // Check recent applications โดยใช้ single field index เท่านั้น
       const recentApps = await db.collection("borrowers")
         .where("userId", "==", userId)
-        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(oneWeekAgo))
+        .orderBy("createdAt", "desc")
+        .limit(10)
         .get();
 
-      const todayApps = await db.collection("borrowers")
-        .where("userId", "==", userId)
-        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(oneDayAgo))
-        .get();
+      // Filter results in memory เพื่อไม่ต้องใช้ compound index
+      const oneWeekApps = recentApps.docs.filter(doc => {
+        const createTime = doc.get("createdAt");
+        return createTime && createTime.toDate() >= oneWeekAgo;
+      });
+
+      const todayApps = oneWeekApps.filter(doc => {
+        const createTime = doc.get("createdAt");
+        return createTime && createTime.toDate() >= oneDayAgo;
+      });
 
       let score = 0;
       let reasoning = "";
 
-      if (todayApps.size > 1) {
+      if (todayApps.length > 1) {
         score = -30;
         reasoning = "Multiple applications today - potential desperation";
-      } else if (recentApps.size > 2) {
+      } else if (oneWeekApps.length > 2) {
         score = -20;
         reasoning = "Multiple applications this week - concerning pattern";
-      } else if (recentApps.size === 0) {
+      } else if (oneWeekApps.length === 0) {
         score = 10;
         reasoning = "First application in a while - good timing";
       } else {

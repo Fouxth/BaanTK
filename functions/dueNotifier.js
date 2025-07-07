@@ -1,8 +1,8 @@
-// functions/dueNotifier.js
+// functions/dueNotifier.js - Enhanced with improved notification system
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp, cert, getApps } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
-const { Client } = require("@line/bot-sdk");
+const { sendPaymentDueNotification } = require("./line-auto-reply");
 
 // 🔥 ต้อง initialize Firebase App ก่อนใช้
 if (!getApps().length && process.env.GOOGLE_PROJECT_ID) {
@@ -16,62 +16,48 @@ if (!getApps().length && process.env.GOOGLE_PROJECT_ID) {
 }
 
 const db = getFirestore();
-const client = new Client({
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.CHANNEL_SECRET
-});
 
-exports.notifyDueDate = onSchedule("every 24 hours", async (event) => {
-  const today = new Date();
-  const snapshot = await db.collection("borrowers").get();
-  const tasks = [];
+// Enhanced notification scheduler using the new notification system
+exports.notifyDueDate = onSchedule("0 9 * * *", async (event) => {
+  console.log("🔔 Running enhanced daily due reminder...");
+  
+  try {
+    const today = new Date();
+    const snapshot = await db.collection("borrowers")
+      .where("status", "==", "approved")
+      .get();
 
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    const dueDate = data.dueDate?.toDate?.() || new Date();
-    const diffTime = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
+    const tasks = [];
 
-    if (diffTime <= 1 && data.status === "approved") {
-      const interest = data.totalLoan * data.interestRate;
-      const totalDue = data.totalLoan + interest;
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const dueDate = data.dueDate?.toDate?.() || new Date();
+      const diffTime = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
 
-      const message = {
-        type: "flex",
-        altText: "แจ้งเตือนครบกำหนดชำระ",
-        contents: {
-          type: "bubble",
-          body: {
-            type: "box",
-            layout: "vertical",
-            contents: [
-              { type: "text", text: "📢 แจ้งเตือนชำระเงิน", weight: "bold", size: "lg" },
-              { type: "text", text: `คุณ ${data.firstName} ${data.lastName}` },
-              { type: "text", text: `ยอดที่ต้องชำระ: ${totalDue.toFixed(2)} บาท` },
-              { type: "text", text: `ครบกำหนดวันที่: ${dueDate.toLocaleDateString()}` }
-            ]
-          },
-          footer: {
-            type: "box",
-            layout: "vertical",
-            contents: [
-              {
-                type: "button",
-                style: "primary",
-                action: {
-                  type: "uri",
-                  label: "💳 ชำระเงิน",
-                  uri: `https://promptpay.io/0858294254/${totalDue.toFixed(2)}`
-                },
-                color: "#1DB446"
-              }
-            ]
-          }
-        }
-      };
+      // แจ้งเตือน: วันนี้, พรุ่งนี้, หรือเกินกำหนดไม่เกิน 7 วัน
+      if (diffTime <= 1 && diffTime >= -7) {
+        console.log(`📅 Sending notification for user ${data.userId}, due in ${diffTime} days`);
+        tasks.push(sendPaymentDueNotification(data));
+      }
+    });
 
-      tasks.push(client.pushMessage(data.userId, message));
-    }
-  });
+    const results = await Promise.allSettled(tasks);
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
 
-  await Promise.all(tasks);
+    console.log(`✅ Notification summary: ${successful} sent, ${failed} failed`);
+    
+    return {
+      success: true,
+      notificationsSent: successful,
+      notificationsFailed: failed
+    };
+
+  } catch (error) {
+    console.error("❌ Error in notification scheduler:", error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 });

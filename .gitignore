@@ -64,3 +64,45 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.local
+.env.production
+.env.development
+functions/.env
+functions/.env.local
+functions/.env.production
+functions/.env.development
+
+# Security sensitive files
+*.pem
+*.key
+*.p12
+*.pfx
+service-account-key.json
+firebase-service-account.json
+
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Local development files
+local-config.json
+test-data/
+debug-logs/
+*.local.js

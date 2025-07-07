@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BaanTK Rich Menu Template</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+        }
+        .container {
+            width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            width: 100%;
+            height: 540px; /* Ratio 2500:1686 = 1.48, 800*1.48/2 = 540 */
+        }
+        .menu-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .menu-item:hover {
+            transform: scale(1.05);
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.2);
+        }
+        .menu-item .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .menu-item .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .menu-item .subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        /* Colors for each service */
+        .register { background: linear-gradient(135deg, #1DB446, #27AE60); }
+        .status { background: linear-gradient(135deg, #FF6B35, #E67E22); }
+        .payment { background: linear-gradient(135deg, #4ECDC4, #16A085); }
+        .contact { background: linear-gradient(135deg, #9B59B6, #8E44AD); }
+        .terms { background: linear-gradient(135deg, #E67E22, #D35400); }
+        .about { background: linear-gradient(135deg, #3498DB, #2980B9); }
+        
+        .instructions {
+            padding: 30px;
+            background: #f8f9fa;
+            text-align: center;
+        }
+        .instructions h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        .instructions p {
+            color: #7f8c8d;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .download-btn {
+            display: inline-block;
+            background: #1DB446;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+        .download-btn:hover {
+            background: #27AE60;
+        }
+        .size-info {
+            background: #e8f4fd;
+            border: 1px solid #b8ddf2;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="menu-grid">
+            <!-- Row 1 -->
+            <div class="menu-item register">
+                <div class="icon">📝</div>
+                <div class="title">สมัครสินเชื่อ</div>
+                <div class="subtitle">สมัครง่าย อนุมัติเร็ว</div>
+            </div>
+            <div class="menu-item status">
+                <div class="icon">🔍</div>
+                <div class="title">ตรวจสอบสถานะ</div>
+                <div class="subtitle">ดูสถานะการสมัคร</div>
+            </div>
+            <div class="menu-item payment">
+                <div class="icon">💰</div>
+                <div class="title">ชำระเงิน</div>
+                <div class="subtitle">ส่งหลักฐานการชำระ</div>
+            </div>
+            
+            <!-- Row 2 -->
+            <div class="menu-item contact">
+                <div class="icon">📞</div>
+                <div class="title">ติดต่อเจ้าหน้าที่</div>
+                <div class="subtitle">สอบถามข้อมูล ปรึกษา</div>
+            </div>
+            <div class="menu-item terms">
+                <div class="icon">📋</div>
+                <div class="title">เงื่อนไขบริการ</div>
+                <div class="subtitle">เงื่อนไข ดอกเบี้ย</div>
+            </div>
+            <div class="menu-item about">
+                <div class="icon">🏠</div>
+                <div class="title">เกี่ยวกับเรา</div>
+                <div class="subtitle">ประวัติ บริษัท</div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h2>🎨 BaanTK Rich Menu Template</h2>
+            <p>นี่คือเทมเพลตสำหรับสร้างภาพ Rich Menu ของ LINE Bot BaanTK</p>
+            
+            <div class="size-info">
+                <strong>📏 ขนาดที่ต้องการ:</strong> 2500 x 1686 pixels<br>
+                <strong>🎯 พื้นที่แต่ละช่อง:</strong> แบ่งเป็น 6 ช่อง (3x2)<br>
+                <strong>📂 รูปแบบไฟล์:</strong> PNG หรือ JPEG (แนะนำ PNG)
+            </div>
+            
+            <p><strong>วิธีใช้:</strong><br>
+            1. Screenshot หน้านี้ในขนาด 2500x1686 pixels<br>
+            2. หรือสร้างภาพใหม่ตามแบบด้านบน<br>
+            3. Upload ผ่าน LINE Developers Console<br>
+            4. ตั้งค่า Areas ตาม configuration ใน RICH_MENU_GUIDE.md</p>
+            
+            <a href="#" class="download-btn" onclick="downloadTemplate()">💾 Download Template Guide</a>
+        </div>
+    </div>
+
+    <script>
+        function downloadTemplate() {
+            // Convert to canvas and download
+            alert('💡 Tip: ใช้ Screenshot tool หรือ Design software สร้างภาพขนาด 2500x1686 pixels ตามเทมเพลตนี้');
+        }
+        
+        // Add click effects
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const title = this.querySelector('.title').textContent;
+                alert(`คุณคลิกที่: ${title}`);
+            });
+        });
+    </script>
+</body>
+</html>

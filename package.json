@@ -2,15 +2,16 @@
   "name": "baantk-loan-management",
   "version": "2.0.0",
   "description": "Production-ready loan management system with Firebase and LINE integration",
-  "main": "functions/simple.js",
+  "main": "functions/index.js",
   "scripts": {
     "test": "node test-system.js",
     "dev": "firebase emulators:start --import ./emulator-data --export-on-exit",
-    "deploy": "firebase deploy",
-    "deploy:functions": "firebase deploy --only functions",
+    "deploy": "npm run security-check && firebase deploy",
+    "deploy:functions": "npm run security-check && firebase deploy --only functions",
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:storage": "firebase deploy --only storage",
+    "deploy:unsafe": "firebase deploy",
     "logs": "firebase functions:log",
     "serve": "firebase emulators:start --only functions,hosting,firestore",
     "setup": "npm install && cd functions && npm install",
@@ -20,11 +21,13 @@
     "start": "firebase emulators:start",
     "test:unit": "cd functions && npm test",
     "test:integration": "node test-system.js",
+    "security-check": "node security-check.js",
+    "pre-deploy": "npm run security-check && npm run lint",
     "docs": "echo 'Documentation available in README.md, DEPLOYMENT.md, and SECURITY.md'"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/baantk-loan-management"
+    "url": "https://github.com/Fouxth/BaanTK"
   },
   "keywords": [
     "loan-management",
@@ -39,16 +42,18 @@
   "license": "PROPRIETARY",
   "private": true,
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "npm": ">=8.0.0"
   },
   "devDependencies": {
     "axios": "^1.6.0",
     "colors": "^1.4.0",
-    "firebase-tools": "^12.9.1"
+    "firebase-tools": "^14.9.0"
   },
   "dependencies": {
+    "dotenv": "^17.0.1",
     "firebase": "^10.7.1",
+    "firebase-admin": "^13.4.0",
     "joi": "^17.13.3"
   }
 }
