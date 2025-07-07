@@ -1754,33 +1754,150 @@ function verifySignature(body, signature) {
 }
 
 // Process incoming LINE messages
-async function processLineMessage(event) {
-  if (event.type !== "message" || event.message.type !== "text") {
-    return null;
+async function processLineMessage(userId, messageText, replyToken) {
+  console.log(`📱 LINE Message from ${userId}: ${messageText}`);
+  
+  const lowerText = messageText.toLowerCase().trim();
+  let response = null;
+
+  // Determine response based on message content
+  if (lowerText.includes("สวัสดี") || lowerText.includes("hello") || lowerText.includes("hi")) {
+    response = AUTO_REPLIES.greeting;
+  } else if (lowerText.includes("ช่วยเหลือ") || lowerText.includes("help") || lowerText.includes("คำสั่ง") || 
+             lowerText.includes("เมนู") || lowerText.includes("menu")) {
+    response = AUTO_REPLIES.mainMenu;
+  } else if (lowerText.includes("สมัคร") || lowerText.includes("register") || lowerText.includes("ลงทะเบียน")) {
+    response = AUTO_REPLIES.register;
+  } else if (lowerText.includes("สถานะ") || lowerText.includes("status") || lowerText.includes("ตรวจสอบ")) {
+    response = AUTO_REPLIES.status;
+  } else if (lowerText.includes("ชำระ") || lowerText.includes("payment") || lowerText.includes("โอน") || lowerText.includes("สลิป")) {
+    response = AUTO_REPLIES.payment;
+  } else if (lowerText.includes("ติดต่อ") || lowerText.includes("contact") || lowerText.includes("โทร")) {
+    response = AUTO_REPLIES.contact;
+  } else if (lowerText.includes("เงื่อนไข") || lowerText.includes("terms") || lowerText.includes("ข้อตกลง")) {
+    response = AUTO_REPLIES.terms;
+  } else if (lowerText.includes("เกี่ยวกับ") || lowerText.includes("about") || lowerText.includes("บริษัท")) {
+    response = AUTO_REPLIES.about;
+  } else {
+    response = AUTO_REPLIES.default;
   }
 
-  const userId = event.source.userId;
-  const messageText = event.message.text.toLowerCase().trim();
-  
-  console.log(`📱 LINE Message from ${userId}: ${messageText}`);
-
-  return await sendReply(event, messageText);
+  // Send reply
+  try {
+    await sendReplyMessage(replyToken, response);
+    return { success: true, reply: response };
+  } catch (error) {
+    console.error("❌ Error sending reply:", error);
+    return { success: false, error: error.message };
+  }
 }
 
 // Process postback events (from buttons)
-async function processPostbackEvent(event) {
-  const userId = event.source.userId;
-  const data = event.postback.data;
-  
+async function processPostbackEvent(userId, data, replyToken) {
   console.log(`🔘 Postback from ${userId}: ${data}`);
 
   // Parse action from postback data
-  const action = data.split('=')[1];
+  const action = data.split('=')[1] || data;
+  let response = null;
   
-  return await sendReply(event, action);
+  // Determine response based on postback action
+  if (action === "register") {
+    response = AUTO_REPLIES.register;
+  } else if (action === "menu") {
+    response = AUTO_REPLIES.mainMenu;
+  } else if (action === "check_status") {
+    response = AUTO_REPLIES.status;
+  } else if (action === "payment") {
+    response = AUTO_REPLIES.payment;
+  } else if (action === "contact") {
+    response = AUTO_REPLIES.contact;
+  } else if (action === "terms") {
+    response = AUTO_REPLIES.terms;
+  } else if (action === "about") {
+    response = AUTO_REPLIES.about;
+  } else {
+    response = AUTO_REPLIES.default;
+  }
+
+  // Send reply
+  try {
+    await sendReplyMessage(replyToken, response);
+    return { success: true, reply: response };
+  } catch (error) {
+    console.error("❌ Error sending postback reply:", error);
+    return { success: false, error: error.message };
+  }
 }
 
 // Send appropriate reply based on user input
+// Send reply message (for direct testing)
+async function sendReplyMessage(replyToken, response) {
+  try {
+    if (process.env.NODE_ENV !== 'production') {
+      // Mock mode for testing
+      console.log(`🔄 Mock Reply - Token: ${replyToken.substring(0, 10)}...`);
+      console.log(`📝 Response Type: ${Array.isArray(response) ? 'text array' : typeof response}`);
+      if (Array.isArray(response) && response.length > 0) {
+        console.log(`💬 First message: ${response[0].substring(0, 100)}...`);
+      }
+      return { success: true, mock: true };
+    }
+
+    if (response.type === "flex") {
+      await lineClient.replyMessage(replyToken, response);
+      console.log(`✅ Sent flex message`);
+      return { success: true, messageType: "flex" };
+    } else if (Array.isArray(response)) {
+      const filteredMessages = response
+        .filter(text => text && text.trim().length > 0)
+        .slice(0, 5);
+      
+      const messages = filteredMessages.map(text => ({ type: "text", text }));
+      await lineClient.replyMessage(replyToken, messages);
+      console.log(`✅ Sent ${messages.length} text messages`);
+      return { success: true, messagesSent: messages.length };
+    }
+  } catch (error) {
+    console.error("❌ Failed to send reply message:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Send welcome message (for follow events)
+async function sendWelcomeMessage(userId, replyToken) {
+  try {
+    const response = AUTO_REPLIES.welcome || AUTO_REPLIES.greeting;
+    await sendReplyMessage(replyToken, response);
+    console.log(`👋 Sent welcome message to ${userId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Failed to send welcome message:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Process image message (for payment slips)
+async function processImageMessage(userId, messageId, replyToken) {
+  try {
+    console.log(`🖼️ Processing image from ${userId}, message ID: ${messageId}`);
+    
+    // In production, this would download and process the image
+    // For now, just send a confirmation message
+    const response = [
+      "📷 ได้รับรูปภาพของคุณแล้ว",
+      "🔍 กำลังตรวจสอบข้อมูล...",
+      "✅ เราจะแจ้งผลการตรวจสอบให้คุณทราบเร็วๆ นี้"
+    ];
+    
+    await sendReplyMessage(replyToken, response);
+    console.log(`✅ Processed image message from ${userId}`);
+    return { success: true, messageType: "image_processed" };
+  } catch (error) {
+    console.error("❌ Failed to process image message:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 async function sendReply(event, input) {
   const userId = event.source.userId;
   let response = null;
@@ -1922,3 +2039,55 @@ async function sendBroadcastMessage(messages) {
     return { success: false, error: error.message };
   }
 }
+
+// Export functions for testing and external use
+module.exports = {
+  processLineMessage,
+  processPostbackEvent,
+  sendReply,
+  sendReplyMessage,
+  sendWelcomeMessage,
+  processImageMessage,
+  sendPushMessage,
+  sendBroadcastMessage,
+  sendSlipApprovalNotification,
+  sendApplicationStatusNotification,
+  // Main event processor for webhook
+  processLineEvent: async (event) => {
+    try {
+      console.log("📨 Processing LINE event:", event.type);
+      
+      switch (event.type) {
+        case 'message':
+          if (event.message.type === 'text') {
+            return await processLineMessage(event.source.userId, event.message.text, event.replyToken);
+          } else if (event.message.type === 'image') {
+            return await processImageMessage(event.source.userId, event.message.id, event.replyToken);
+          }
+          break;
+          
+        case 'postback':
+          return await processPostbackEvent(event.source.userId, event.postback.data, event.replyToken);
+          
+        case 'follow':
+          return await sendWelcomeMessage(event.source.userId, event.replyToken);
+          
+        case 'unfollow':
+          console.log("👋 User unfollowed:", event.source.userId);
+          return { success: true };
+          
+        default:
+          console.log("❓ Unknown event type:", event.type);
+          return { success: true };
+      }
+    } catch (error) {
+      console.error("❌ Error processing LINE event:", error);
+      return { success: false, error: error.message };
+    }
+  },
+  
+  // Configuration and client access
+  LINE_CONFIG,
+  lineClient,
+  userStates
+};
