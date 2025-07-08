@@ -126,6 +126,218 @@ exports.adminApi = onRequest(
         return await handleApplicationApproval(req, res);
       }
 
+      // Debug API endpoints
+      if (path === '/api/debug-user-status' || path === '/debug-user-status') {
+        console.log('🔍 Debug user status request:', req.body);
+        
+        const { userId } = req.body;
+        if (!userId) {
+          return res.status(400).json({ error: 'userId required' });
+        }
+
+        try {
+          const admin = require("firebase-admin");
+          if (!admin.apps.length) {
+            admin.initializeApp();
+          }
+          const db = admin.firestore();
+
+          // ค้นหาข้อมูลใน borrowers collection
+          const borrowersSnapshot = await db.collection('borrowers')
+            .where('lineUserId', '==', userId)
+            .limit(1)
+            .get();
+
+          const borrowersSnapshotUserId = await db.collection('borrowers')
+            .where('userId', '==', userId)
+            .limit(1)
+            .get();
+
+          return res.status(200).json({
+            success: true,
+            userId: userId,
+            timestamp: new Date().toISOString(),
+            searches: {
+              byLineUserId: {
+                found: !borrowersSnapshot.empty,
+                count: borrowersSnapshot.size,
+                data: borrowersSnapshot.empty ? null : borrowersSnapshot.docs[0].data()
+              },
+              byUserId: {
+                found: !borrowersSnapshotUserId.empty,
+                count: borrowersSnapshotUserId.size,
+                data: borrowersSnapshotUserId.empty ? null : borrowersSnapshotUserId.docs[0].data()
+              }
+            }
+          });
+
+        } catch (error) {
+          console.error('Debug status error:', error);
+          return res.status(500).json({ 
+            error: error.message,
+            userId: userId
+          });
+        }
+      }
+
+      if (path === '/api/test-registration' || path === '/test-registration') {
+        console.log('🔍 Test registration request:', req.body);
+        
+        return res.status(200).json({
+          success: true,
+          message: 'This is a test endpoint - registration would be processed here',
+          receivedData: req.body,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Fix existing borrowers endpoint
+      if (path === '/api/fix-borrowers' || path === '/fix-borrowers') {
+        // Simple admin authentication
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        const adminTokens = [
+          process.env.ADMIN_SECRET_TOKEN,
+          'admin123',
+          'baantk-admin-2024', 
+          'demo123'
+        ].filter(Boolean);
+        
+        if (!token || !adminTokens.includes(token)) {
+          return res.status(401).json({ error: 'Unauthorized - Admin access required' });
+        }
+
+        try {
+          console.log('🔧 Starting borrower record fix...');
+          
+          const admin = require("firebase-admin");
+          if (!admin.apps.length) {
+            admin.initializeApp();
+          }
+          const db = admin.firestore();
+
+          // Get all borrowers
+          const borrowersSnapshot = await db.collection('borrowers').get();
+          
+          if (borrowersSnapshot.empty) {
+            return res.status(200).json({
+              success: true,
+              message: 'No borrowers found in database',
+              stats: { total: 0, updated: 0, skipped: 0 }
+            });
+          }
+
+          const batch = db.batch();
+          let updateCount = 0;
+          let skipCount = 0;
+          const updateDetails = [];
+
+          // Process each document
+          borrowersSnapshot.forEach((doc) => {
+            const data = doc.data();
+            const docId = doc.id;
+            
+            if (data.userId && !data.lineUserId) {
+              batch.update(doc.ref, { 
+                lineUserId: data.userId,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                fixedLineUserId: true
+              });
+              
+              updateDetails.push({
+                id: docId,
+                name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),
+                userId: data.userId?.substring(0, 10) + '...',
+                action: 'added_lineUserId'
+              });
+              
+              updateCount++;
+            } else {
+              skipCount++;
+            }
+          });
+
+          // Execute batch update
+          if (updateCount > 0) {
+            await batch.commit();
+          }
+
+          const stats = {
+            total: borrowersSnapshot.size,
+            updated: updateCount,
+            skipped: skipCount,
+            updateDetails: updateDetails.slice(0, 10) // Show first 10 updates
+          };
+
+          console.log('✅ Borrower fix completed:', stats);
+
+          return res.status(200).json({
+            success: true,
+            message: `Successfully updated ${updateCount} borrower records`,
+            stats: stats
+          });
+
+        } catch (error) {
+          console.error('❌ Fix borrowers error:', error);
+          return res.status(500).json({ 
+            error: error.message,
+            message: 'Failed to fix borrower records'
+          });
+        }
+      }
+
+      // List all borrowers for debugging
+      if (path === '/api/list-borrowers' || path === '/list-borrowers') {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        const adminTokens = [
+          process.env.ADMIN_SECRET_TOKEN,
+          'admin123',
+          'baantk-admin-2024', 
+          'demo123'
+        ].filter(Boolean);
+        
+        if (!token || !adminTokens.includes(token)) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        try {
+          const admin = require("firebase-admin");
+          if (!admin.apps.length) {
+            admin.initializeApp();
+          }
+          const db = admin.firestore();
+
+          const borrowersSnapshot = await db.collection('borrowers').limit(10).get();
+          
+          const borrowers = borrowersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              userId: data.userId,
+              lineUserId: data.lineUserId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              status: data.status,
+              hasUserIdField: !!data.userId,
+              hasLineUserIdField: !!data.lineUserId,
+              userIdLength: data.userId?.length || 0,
+              lineUserIdLength: data.lineUserId?.length || 0
+            };
+          });
+
+          return res.status(200).json({
+            success: true,
+            count: borrowers.length,
+            borrowers: borrowers
+          });
+
+        } catch (error) {
+          console.error('List borrowers error:', error);
+          return res.status(500).json({ 
+            error: error.message
+          });
+        }
+      }
+
       // Default response
       res.status(404).json({ error: 'API endpoint not found' });
       

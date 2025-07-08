@@ -173,6 +173,7 @@ function createBorrowerRecord(userData, creditAssessment, loanTerms, autoApprova
   return {
     // ข้อมูลพื้นฐาน
     userId: userData.userId,
+    lineUserId: userData.userId, // เพิ่ม lineUserId สำหรับการค้นหาสถานะใน LINE
     requestId: requestId,
 
     // ข้อมูลส่วนตัวจากทะเบียนราษฎร (ใช้ fallback values เพื่อป้องกัน undefined)

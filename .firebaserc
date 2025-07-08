@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "baan-tk"
-  }
+    "default": "baan-tk",
+    "btk": "baan-tk"
+  },
+  "targets": {},
+  "etags": {}
 }

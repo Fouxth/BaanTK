@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug LIFF - BaanTK</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen gradient-bg py-6 flex flex-col justify-center sm:py-12">
+        <div class="relative py-3 sm:max-w-xl sm:mx-auto">
+            <div class="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl card-shadow"></div>
+            <div class="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-8">
+                
+                <!-- Header -->
+                <div class="text-center mb-8">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-2">🔍 Debug LIFF</h1>
+                    <p class="text-gray-600 text-sm">ตรวจสอบการทำงานของ LIFF และ LINE User ID</p>
+                </div>
+
+                <!-- Status Card -->
+                <div id="status-card" class="bg-gray-100 p-4 rounded-lg mb-6">
+                    <h3 class="font-bold text-lg mb-3">📊 สถานะการเชื่อมต่อ</h3>
+                    <div id="connection-status" class="space-y-2">
+                        <div class="flex justify-between">
+                            <span>LIFF SDK:</span>
+                            <span id="liff-sdk-status" class="text-orange-500">🔄 กำลังโหลด...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>LIFF Init:</span>
+                            <span id="liff-init-status" class="text-orange-500">⏳ รอ...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Login Status:</span>
+                            <span id="login-status" class="text-orange-500">⏳ รอ...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Platform:</span>
+                            <span id="platform-status" class="text-gray-500">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>User ID:</span>
+                            <span id="user-id-status" class="text-gray-500">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Info Card -->
+                <div id="user-info-card" class="bg-blue-50 p-4 rounded-lg mb-6 hidden">
+                    <h3 class="font-bold text-lg mb-3">👤 ข้อมูลผู้ใช้</h3>
+                    <div id="user-info" class="space-y-2 text-sm">
+                        <!-- จะถูกเติมโดย JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Test Buttons -->
+                <div class="space-y-4">
+                    <button id="test-status-btn" 
+                        class="w-full bg-blue-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        📊 ทดสอบการเช็คสถานะ
+                    </button>
+                    
+                    <button id="test-register-btn"
+                        class="w-full bg-green-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        📝 ทดสอบการลงทะเบียน
+                    </button>
+
+                    <button id="force-login-btn"
+                        class="w-full bg-purple-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-purple-600">
+                        🔑 บังคับ Login ใหม่
+                    </button>
+                </div>
+
+                <!-- Debug Log -->
+                <div class="mt-6">
+                    <h3 class="font-bold text-lg mb-3">📋 Debug Log</h3>
+                    <div id="debug-log" class="bg-black text-green-400 p-4 rounded-lg h-64 overflow-y-auto text-xs font-mono">
+                        <!-- Debug messages will appear here -->
+                    </div>
+                </div>
+
+                <!-- Result Card -->
+                <div id="result-card" class="mt-6 hidden">
+                    <h3 class="font-bold text-lg mb-3">📄 ผลการทดสอบ</h3>
+                    <div id="result-content" class="bg-gray-100 p-4 rounded-lg">
+                        <!-- Results will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let userId = null;
+        let liffInitialized = false;
+        
+        // Debug logging function
+        function debugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('debug-log');
+            const colorClass = {
+                'info': 'text-green-400',
+                'error': 'text-red-400',
+                'warning': 'text-yellow-400',
+                'success': 'text-blue-400'
+            }[type] || 'text-green-400';
+            
+            logElement.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Update status indicators
+        function updateStatus(elementId, text, status = 'info') {
+            const element = document.getElementById(elementId);
+            const colors = {
+                'success': 'text-green-500',
+                'error': 'text-red-500',
+                'warning': 'text-yellow-500',
+                'info': 'text-blue-500'
+            };
+            
+            element.textContent = text;
+            element.className = colors[status] || 'text-gray-500';
+        }
+
+        // Check device and browser info
+        function checkEnvironment() {
+            const userAgent = navigator.userAgent;
+            let platform = 'Unknown';
+            
+            if (/Android/i.test(userAgent)) {
+                platform = '📱 Android';
+            } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+                platform = '📱 iOS';
+            } else if (/Windows/i.test(userAgent)) {
+                platform = '💻 Windows';
+            } else if (/Mac/i.test(userAgent)) {
+                platform = '💻 Mac';
+            }
+            
+            updateStatus('platform-status', platform, 'info');
+            debugLog(`Platform detected: ${platform}`, 'info');
+            debugLog(`User Agent: ${userAgent}`, 'info');
+            debugLog(`Screen size: ${window.screen.width}x${window.screen.height}`, 'info');
+            debugLog(`Viewport size: ${window.innerWidth}x${window.innerHeight}`, 'info');
+        }
+
+        // Initialize LIFF
+        async function initializeLiff() {
+            try {
+                debugLog('Starting LIFF initialization...', 'info');
+                updateStatus('liff-init-status', '🔄 กำลังเตรียม...', 'warning');
+                
+                // Check if LIFF SDK is loaded
+                if (typeof liff === 'undefined') {
+                    throw new Error('LIFF SDK ไม่ได้โหลด');
+                }
+                
+                updateStatus('liff-sdk-status', '✅ โหลดแล้ว', 'success');
+                debugLog('LIFF SDK loaded successfully', 'success');
+                
+                // Initialize LIFF
+                await liff.init({ liffId: '2007493964-gWv9bxBR' });
+                
+                liffInitialized = true;
+                updateStatus('liff-init-status', '✅ เริ่มต้นแล้ว', 'success');
+                debugLog('LIFF initialized successfully', 'success');
+                
+                // Check login status
+                const isLoggedIn = liff.isLoggedIn();
+                debugLog(`Login status: ${isLoggedIn}`, 'info');
+                
+                if (isLoggedIn) {
+                    updateStatus('login-status', '✅ เข้าสู่ระบบแล้ว', 'success');
+                    
+                    // Get user profile
+                    const profile = await liff.getProfile();
+                    userId = profile.userId;
+                    
+                    updateStatus('user-id-status', `✅ ${userId.substring(0, 10)}...`, 'success');
+                    debugLog(`User ID: ${userId}`, 'success');
+                    debugLog(`Display Name: ${profile.displayName}`, 'info');
+                    
+                    // Show user info
+                    showUserInfo(profile);
+                    
+                    // Enable test buttons
+                    document.getElementById('test-status-btn').disabled = false;
+                    document.getElementById('test-register-btn').disabled = false;
+                    
+                } else {
+                    updateStatus('login-status', '❌ ยังไม่ได้เข้าสู่ระบบ', 'error');
+                    debugLog('User not logged in', 'warning');
+                }
+                
+            } catch (error) {
+                debugLog(`LIFF init error: ${error.message}`, 'error');
+                updateStatus('liff-init-status', '❌ ผิดพลาด', 'error');
+                console.error('LIFF init error:', error);
+            }
+        }
+
+        // Show user information
+        function showUserInfo(profile) {
+            const userInfoCard = document.getElementById('user-info-card');
+            const userInfo = document.getElementById('user-info');
+            
+            userInfo.innerHTML = `
+                <div class="flex justify-between">
+                    <span>Display Name:</span>
+                    <span class="font-medium">${profile.displayName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>User ID:</span>
+                    <span class="font-medium text-xs">${profile.userId}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Picture URL:</span>
+                    <span class="font-medium text-xs">${profile.pictureUrl ? 'มี' : 'ไม่มี'}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Status Message:</span>
+                    <span class="font-medium text-xs">${profile.statusMessage || 'ไม่มี'}</span>
+                </div>
+            `;
+            
+            userInfoCard.classList.remove('hidden');
+        }
+
+        // Test status check
+        async function testStatusCheck() {
+            if (!userId) {
+                debugLog('No user ID available for status check', 'error');
+                return;
+            }
+            
+            try {
+                debugLog('Testing status check...', 'info');
+                showResult('กำลังทดสอบการเช็คสถานะ...', 'warning');
+                
+                const response = await fetch('/api/debug-user-status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId: userId })
+                });
+                
+                const data = await response.json();
+                debugLog(`Status check response: ${JSON.stringify(data)}`, 'info');
+                
+                if (response.ok) {
+                    showResult(JSON.stringify(data, null, 2), 'success');
+                } else {
+                    showResult(`Error: ${data.error || 'Unknown error'}`, 'error');
+                }
+                
+            } catch (error) {
+                debugLog(`Status check error: ${error.message}`, 'error');
+                showResult(`Network error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test registration (mock)
+        async function testRegistration() {
+            if (!userId) {
+                debugLog('No user ID available for registration test', 'error');
+                return;
+            }
+            
+            try {
+                debugLog('Testing registration endpoint...', 'info');
+                showResult('กำลังทดสอบการลงทะเบียน...', 'warning');
+                
+                const mockData = {
+                    userId: userId,
+                    firstName: 'ทดสอบ',
+                    lastName: 'ระบบ',
+                    idCard: '1234567890123',
+                    birthDate: '1990-01-01',
+                    amount: 5000,
+                    frequency: 'monthly',
+                    addressOnId: 'ที่อยู่ทดสอบ',
+                    currentAddress: 'ที่อยู่ทดสอบ',
+                    phoneNumber: '0812345678',
+                    idCardImage: 'data:image/jpeg;base64,test',
+                    selfieImage: 'data:image/jpeg;base64,test'
+                };
+                
+                const response = await fetch('/api/test-registration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(mockData)
+                });
+                
+                const data = await response.json();
+                debugLog(`Registration test response: ${JSON.stringify(data)}`, 'info');
+                
+                if (response.ok) {
+                    showResult(JSON.stringify(data, null, 2), 'success');
+                } else {
+                    showResult(`Error: ${data.error || 'Unknown error'}`, 'error');
+                }
+                
+            } catch (error) {
+                debugLog(`Registration test error: ${error.message}`, 'error');
+                showResult(`Network error: ${error.message}`, 'error');
+            }
+        }
+
+        // Force login
+        function forceLogin() {
+            if (liffInitialized) {
+                debugLog('Forcing login...', 'info');
+                liff.login();
+            } else {
+                debugLog('LIFF not initialized yet', 'error');
+            }
+        }
+
+        // Show test results
+        function showResult(content, type = 'info') {
+            const resultCard = document.getElementById('result-card');
+            const resultContent = document.getElementById('result-content');
+            
+            const bgColors = {
+                'success': 'bg-green-100 text-green-800',
+                'error': 'bg-red-100 text-red-800',
+                'warning': 'bg-yellow-100 text-yellow-800',
+                'info': 'bg-blue-100 text-blue-800'
+            };
+            
+            resultContent.className = `p-4 rounded-lg text-sm font-mono ${bgColors[type] || bgColors.info}`;
+            resultContent.textContent = content;
+            resultCard.classList.remove('hidden');
+        }
+
+        // Event listeners
+        document.getElementById('test-status-btn').addEventListener('click', testStatusCheck);
+        document.getElementById('test-register-btn').addEventListener('click', testRegistration);
+        document.getElementById('force-login-btn').addEventListener('click', forceLogin);
+
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            debugLog('Page loaded, starting debug session...', 'info');
+            checkEnvironment();
+            setTimeout(initializeLiff, 1000); // Wait a bit for LIFF SDK to load
+        });
+    </script>
+</body>
+</html>

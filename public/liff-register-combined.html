@@ -297,7 +297,7 @@
                 console.log('📤 ส่งข้อมูล:', formData);
 
                 // Send to API
-                const apiUrl = 'https://baan-tk.web.app/webhook';
+                const apiUrl = '/api/liff-register';
 
                 console.log('📤 Calling API:', apiUrl);
 
@@ -305,12 +305,9 @@
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Origin': window.location.origin
+                        'Accept': 'application/json'
                     },
-                    body: JSON.stringify(formData),
-                    mode: 'cors',
-                    credentials: 'omit'
+                    body: JSON.stringify(formData)
                 });
 
                 if (response.ok) {
