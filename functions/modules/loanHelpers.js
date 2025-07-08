@@ -124,14 +124,19 @@ function calculateLoanTerms(userData, creditAssessment) {
 }
 
 /**
- * ตัดสินใจการอนุมัติอัตโนมัติ
+ * ตัดสินใจการอนุมัติอัตโนมัติ (ปิดใช้งานแล้ว - ทุกคำขอต้องผ่านการอนุมัติจากแอดมิน)
  */
 function determineAutoApproval(creditAssessment, userData, loanTerms) {
   let autoApproved = false;
   let status = "pending";
   let reason = "";
 
-  // เงื่อนไขการอนุมัติอัตโนมัติ
+  // ปิดการอนุมัติอัตโนมัติ - ทุกคำขอต้องผ่านการอนุมัติจากแอดมิน
+  status = "pending";
+  reason = "รอการอนุมัติจากเจ้าหน้าที่ (การอนุมัติอัตโนมัติถูกปิดใช้งาน)";
+
+  // เก็บไว้สำหรับการพิจารณาในอนาคต (ถ้าต้องการเปิดใช้ auto-approval อีกครั้ง)
+  /*
   if (creditAssessment.score >= 700 && userData.amount <= 10000) {
     autoApproved = true;
     status = "approved";
@@ -150,6 +155,7 @@ function determineAutoApproval(creditAssessment, userData, loanTerms) {
     status = "pending";
     reason = "ต้องการการพิจารณาจากเจ้าหน้าที่";
   }
+  */
 
   return {
     autoApproved: autoApproved,

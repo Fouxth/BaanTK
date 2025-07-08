@@ -115,13 +115,21 @@ app.post("/", async (req, res) => {
 });
 
 // Alternative LINE Webhook endpoint - some LINE configurations might expect this path
-app.post("/line-webhook", async (req, res) => {
+app.post("/webhook", async (req, res) => {
   try {
-    console.log("📨 LINE Webhook received at /line-webhook:", req.body);
+    console.log("📨 LINE Webhook received at /webhook:", {
+      timestamp: new Date().toISOString(),
+      headers: req.headers,
+      body: req.body,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
 
     // ตรวจสอบ signature (optional but recommended for security)
     const signature = req.get('X-Line-Signature');
-    // Skip signature verification for testing
+    console.log("🔐 LINE Signature:", signature ? signature.substring(0, 20) + "..." : "Missing");
+    
+    // Skip signature verification for now - uncomment for production security
     // if (signature && !lineAutoReply.verifySignature(JSON.stringify(req.body), signature)) {
     //   console.log("⚠️ Invalid LINE signature");
     //   return res.status(401).json({ message: "Invalid signature" });
@@ -129,6 +137,7 @@ app.post("/line-webhook", async (req, res) => {
 
     // ตรวจสอบว่ามี events หรือไม่
     const events = req.body.events || [];
+    console.log(`📝 Processing ${events.length} events`);
 
     if (events.length === 0) {
       console.log("⚠️ No events received");
@@ -136,34 +145,34 @@ app.post("/line-webhook", async (req, res) => {
     }
 
     // ประมวลผล events แบบ async
-    const eventPromises = events.map(async (event) => {
-      console.log("📝 Processing event:", event.type);
+    const eventPromises = events.map(async (event, index) => {
+      console.log(`📝 Processing event ${index + 1}/${events.length}:`, {
+        type: event.type,
+        userId: event.source?.userId,
+        messageType: event.message?.type,
+        text: event.message?.text,
+        postbackData: event.postback?.data
+      });
       
       try {
         const result = await lineAutoReply.processLineEvent(event);
-        console.log("✅ Event processed:", result);
+        console.log(`✅ Event ${index + 1} processed successfully:`, result);
         return result;
       } catch (error) {
-        console.error("❌ Event processing error:", error);
+        console.error(`❌ Event ${index + 1} processing error:`, error);
         return { success: false, error: error.message };
       }
     });
 
-    // รอให้ทุก events ประมวลผลเสร็จ
-    const results = await Promise.all(eventPromises);
+    // รอให้ events ทั้งหมดประมวลผลเสร็จ
+    await Promise.all(eventPromises);
 
-    return res.status(200).json({
-      message: "Events processed successfully",
-      eventsProcessed: events.length,
-      results
-    });
-
+    // ส่งกลับ status 200 (จำเป็นสำหรับ LINE Platform)
+    res.status(200).json({ message: "Success" });
   } catch (error) {
-    console.error("❌ LINE Webhook error:", error);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: error.message
-    });
+    console.error("❌ Webhook error:", error);
+    // ต้องส่งกลับ 200 เสมอ ไม่งั้น LINE จะ retry
+    res.status(200).json({ message: "Error processed" });
   }
 });
 

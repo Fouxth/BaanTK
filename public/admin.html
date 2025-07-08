@@ -224,6 +224,19 @@
 
         <!-- Dashboard Section -->
         <section id="dashboard" class="p-6 container-wrapper">
+            <!-- System Status Alert -->
+            <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-center">
+                    <div class="bg-blue-100 p-2 rounded-full mr-3">
+                        <i class="fas fa-info-circle text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-blue-800">การอนุมัติอัตโนมัติถูกปิดใช้งาน</h4>
+                        <p class="text-sm text-blue-700">ทุกคำขอกู้เงินจะต้องผ่านการอนุมัติจากแอดมินก่อนเสมอ เพื่อความปลอดภัยและการควบคุมที่ดีขึ้น</p>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="card bg-white p-6 rounded-lg shadow">
@@ -940,9 +953,8 @@
                     // แสดง error ให้ผู้ใช้เห็น
                     showAlert('เกิดข้อผิดพลาดในการโหลดข้อมูลผู้กู้: ' + error.message, 'error');
                     
-                    // ใช้ demo data เป็นการสำรอง
-                    console.log('🔄 Using demo data as fallback...');
-                    borrowersData = generateDemoBorrowers();
+                    // Initialize empty array instead of demo data
+                    borrowersData = [];
                 }
 
                 // Load payment slips from Firestore
@@ -964,7 +976,7 @@
                     console.log(`✅ Loaded ${slipsData.length} payment slips`);
                 } catch (error) {
                     console.error('❌ Error loading slips:', error);
-                    slipsData = generateDemoSlips();
+                    slipsData = [];
                 }
 
                 // Load images/documents from Firestore
@@ -989,7 +1001,7 @@
                     console.log(`✅ Loaded ${documentsData.length} documents`);
                 } catch (error) {
                     console.error('❌ Error loading documents:', error);
-                    documentsData = generateDemoDocuments();
+                    documentsData = [];
                 }
 
                 // Set up real-time listeners for live updates
@@ -1073,86 +1085,7 @@
             }
         }
 
-        // Demo data functions for testing
-        function loadDemoData() {
-            borrowersData = generateDemoBorrowers();
-            slipsData = generateDemoSlips();
-            documentsData = generateDemoDocuments();
-            updateDashboardStats();
-            updateReportsData();
-        }
-
-        function generateDemoBorrowers() {
-            const statuses = ['pending', 'approved', 'rejected'];
-            const frequencies = ['รายวัน', 'รายสัปดาห์', 'รายเดือน'];
-            const names = [
-                { first: 'สมชาย', last: 'ใจดี' },
-                { first: 'สมหญิง', last: 'จริงใจ' },
-                { first: 'วิชัย', last: 'เก่งดี' },
-                { first: 'วิภา', last: 'สวยงาม' },
-                { first: 'ประสิทธิ์', last: 'ขยันดี' }
-            ];
-
-            return names.map((name, index) => ({
-                id: `demo_${index}`,
-                firstName: name.first,
-                lastName: name.last,
-                idCard: `1234567890${index}`,
-                birthDate: '01/01/1990',
-                address: `123/456 หมู่ ${index + 1} ตำบลทดสอบ อำเภอตัวอย่าง จังหวัดจำลอง`,
-                totalLoan: Math.floor(Math.random() * 40000) + 10000,
-                amount: Math.floor(Math.random() * 40000) + 10000,
-                frequency: frequencies[Math.floor(Math.random() * frequencies.length)],
-                interestRate: 0.1 + (Math.random() * 0.1),
-                status: statuses[Math.floor(Math.random() * statuses.length)],
-                createdAt: {
-                    seconds: Date.now() / 1000 - (Math.random() * 30 * 24 * 60 * 60) // Last 30 days
-                },
-                idCardImage: index % 2 === 0 ? `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><rect width="200" height="120" fill="%23f0f0f0"/><text x="100" y="60" text-anchor="middle" fill="%23666">ID Card ${index + 1}</text></svg>` : null,
-                selfieImage: index % 3 === 0 ? `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><circle cx="75" cy="75" r="70" fill="%23e0e0e0"/><text x="75" y="80" text-anchor="middle" fill="%23666">Selfie ${index + 1}</text></svg>` : null,
-                hasIdCardImage: index % 2 === 0,
-                hasSelfieImage: index % 3 === 0
-            }));
-        }
-
-        function generateDemoSlips() {
-            return [
-                {
-                    id: 'slip_1',
-                    date: new Date().toISOString(),
-                    amount: 5000,
-                    status: 'pending',
-                    imageUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect width="200" height="300" fill="%23ffffff" stroke="%23cccccc"/><text x="100" y="150" text-anchor="middle" fill="%23666">Payment Slip</text></svg>'
-                },
-                {
-                    id: 'slip_2',
-                    date: new Date(Date.now() - 86400000).toISOString(),
-                    amount: 3000,
-                    status: 'approved'
-                }
-            ];
-        }
-
-        function generateDemoDocuments() {
-            return [
-                {
-                    id: 'doc_1',
-                    name: 'เอกสารตัวอย่าง 1.pdf',
-                    url: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="250"><rect width="200" height="250" fill="%23f8f8f8" stroke="%23ddd"/><text x="100" y="125" text-anchor="middle" fill="%23666">PDF Document</text></svg>',
-                    type: 'document',
-                    uploadDate: new Date().toISOString(),
-                    size: 1024000
-                },
-                {
-                    id: 'doc_2',
-                    name: 'รูปภาพตัวอย่าง.jpg',
-                    url: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="200" height="150" fill="%23e8f4fd"/><text x="100" y="75" text-anchor="middle" fill="%231976d2">Image File</text></svg>',
-                    type: 'image',
-                    uploadDate: new Date(Date.now() - 172800000).toISOString(),
-                    size: 512000
-                }
-            ];
-        }
+        // Production data functions only - Demo functions removed for cleaner codebase
 
         function updateDashboardStats() {
             if (!borrowersData || !Array.isArray(borrowersData)) {
@@ -2323,78 +2256,21 @@
             }
         }
 
-        // Debug functions for testing (available in console)
-        window.debugAdmin = {
-            loadTestData: () => {
-                console.log('🧪 Loading test data...');
-                loadDemoData();
-                console.log('✅ Test data loaded');
-            },
+        // Production admin utilities only
+        window.productionAdmin = {
             loadFirestoreData: () => {
-                console.log('🔥 Force loading Firestore data...');
+                console.log('🔥 Loading Firestore data...');
                 loadAllData();
-                console.log('✅ Firestore data loading initiated');
             },
             viewData: () => {
                 console.log('📊 Current data:', {
-                    borrowers: borrowersData,
-                    slips: slipsData,
-                    documents: documentsData,
+                    borrowers: borrowersData?.length || 0,
+                    slips: slipsData?.length || 0,
+                    documents: documentsData?.length || 0,
                     firebaseReady: window.firebaseReady
                 });
-            },
-            testFunctions: () => {
-                console.log('🔧 Testing all functions...');
-                try {
-                    updateDashboardStats();
-                    updateAnalytics();
-                    updateReportsData();
-                    console.log('✅ All functions working');
-                } catch (error) {
-                    console.error('❌ Function test failed:', error);
-                }
-            },
-            testFirestore: async () => {
-                console.log('🧪 Testing Firestore connection...');
-                if (!window.db) {
-                    console.error('❌ Firebase not initialized');
-                    return;
-                }
-                
-                try {
-                    const { collection, getDocs } = window.firestoreFunctions;
-                    const testRef = collection(window.db, 'borrowers');
-                    const snapshot = await getDocs(testRef);
-                    console.log(`✅ Firestore test successful - found ${snapshot.size} borrowers`);
-                } catch (error) {
-                    console.error('❌ Firestore test failed:', error);
-                }
-            },
-            resetApp: () => {
-                console.log('🔄 Resetting application...');
-                localStorage.clear();
-                location.reload();
-            },
-            showCollections: async () => {
-                console.log('📁 Attempting to list Firestore collections...');
-                if (!window.db) {
-                    console.error('❌ Firebase not initialized');
-                    return;
-                }
-                
-                const collections = ['borrowers', 'paymentSlips', 'uploadedImages', 'users', 'contracts'];
-                for (const collectionName of collections) {
-                    try {
-                        const { collection, getDocs } = window.firestoreFunctions;
-                        const ref = collection(window.db, collectionName);
-                        const snapshot = await getDocs(ref);
-                        console.log(`📊 ${collectionName}: ${snapshot.size} documents`);
-                    } catch (error) {
-                        console.log(`⚠️ ${collectionName}: Error - ${error.message}`);
-                    }
-                }
             }
-        };
+        };;
 
         // Click outside to close modal
         const borrowerModal = document.getElementById('borrowerModal');
@@ -2407,12 +2283,6 @@
         }
 
         console.log('🎯 Admin Dashboard ready!');
-        console.log('🔧 Debug commands available:');
-        console.log('   debugAdmin.loadTestData() - โหลดข้อมูลทดสอบ');
-        console.log('   debugAdmin.loadFirestoreData() - โหลดข้อมูลจาก Firestore');
-        console.log('   debugAdmin.testFirestore() - ทดสอบการเชื่อมต่อ Firestore');
-        console.log('   debugAdmin.showCollections() - แสดง Collections ที่มี');
-        console.log('   debugAdmin.viewData() - ดูข้อมูลปัจจุบัน');
     </script>
 </body>
 </html>

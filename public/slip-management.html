@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการสลิปการชำระเงิน - BaanTK</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@9.22.0/compat/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@9.22.0/compat/firestore.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@9.22.0/compat/storage.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+        .slip-image { transition: transform 0.3s ease; }
+        .slip-image:hover { transform: scale(1.05); }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .modal-backdrop { backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-receipt text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-semibold text-gray-900">จัดการสลิปการชำระเงิน</h1>
+                        <p class="text-sm text-gray-600">ตรวจสอบและอนุมัติสลิปการชำระเงินจากลูกค้า</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600" id="currentDate"></p>
+                        <p class="text-xs text-gray-500" id="currentTime"></p>
+                    </div>
+                    <button onclick="window.location.href='admin.html'" 
+                            class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-gray-700 transition">
+                        <i class="fas fa-arrow-left mr-2"></i>กลับหน้าหลัก
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filter and Search -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                    <select id="statusFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">ทุกสถานะ</option>
+                        <option value="pending">รอตรวจสอบ</option>
+                        <option value="approved">อนุมัติแล้ว</option>
+                        <option value="rejected">ปฏิเสธ</option>
+                    </select>
+                    <input type="date" id="dateFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="searchFilter" placeholder="ค้นหาชื่อหรือจำนวนเงิน..." 
+                           class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 w-full sm:w-64">
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="loadSlips()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-sync-alt mr-2"></i>รีเฟรช
+                    </button>
+                    <span id="totalSlips" class="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded-lg">
+                        รวม: 0 สลิป
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">รอตรวจสอบ</p>
+                        <p id="pendingCount" class="text-2xl font-bold text-yellow-600">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">อนุมัติแล้ว</p>
+                        <p id="approvedCount" class="text-2xl font-bold text-green-600">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-times-circle text-red-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">ปฏิเสธ</p>
+                        <p id="rejectedCount" class="text-2xl font-bold text-red-600">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-coins text-blue-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">ยอดรวม</p>
+                        <p id="totalAmount" class="text-2xl font-bold text-blue-600">0 ฿</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slips Grid -->
+        <div id="slipsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Slips will be loaded here -->
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-gray-600">กำลังโหลดข้อมูล...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-12 hidden">
+            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-receipt text-gray-400 text-3xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">ไม่มีสลิปการชำระ</h3>
+            <p class="text-gray-600">ยังไม่มีสลิปการชำระเงินในระบบ</p>
+        </div>
+    </div>
+
+    <!-- Slip Detail Modal -->
+    <div id="slipModal" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between p-6 border-b">
+                    <h3 class="text-lg font-semibold">รายละเอียดสลิปการชำระ</h3>
+                    <button onclick="closeSlipModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-6">
+                    <div id="slipDetails">
+                        <!-- Content will be loaded here -->
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div id="actionButtons" class="flex space-x-4 mt-6 pt-6 border-t">
+                        <button id="approveBtn" onclick="approveSlip()" 
+                                class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-medium transition">
+                            <i class="fas fa-check mr-2"></i>อนุมัติ
+                        </button>
+                        <button id="rejectBtn" onclick="showRejectModal()" 
+                                class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg font-medium transition">
+                            <i class="fas fa-times mr-2"></i>ปฏิเสธ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Reason Modal -->
+    <div id="rejectModal" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full">
+                <div class="p-6">
+                    <h3 class="text-lg font-semibold mb-4">เหตุผลการปฏิเสธ</h3>
+                    <textarea id="rejectReason" placeholder="กรุณาระบุเหตุผลการปฏิเสธ..." 
+                              class="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"></textarea>
+                    <div class="flex space-x-4 mt-4">
+                        <button onclick="closeRejectModal()" 
+                                class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg transition">
+                            ยกเลิก
+                        </button>
+                        <button onclick="confirmReject()" 
+                                class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition">
+                            ยืนยันปฏิเสธ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <div id="messageContainer" class="fixed top-4 right-4 z-50"></div>
+
+    <script>
+        let allSlips = [];
+        let currentSlip = null;
+        let db = null;
+
+        // Initialize Firebase
+        const firebaseConfig = {
+            // Add your Firebase config here
+            apiKey: "AIzaSyBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+            authDomain: "baantk-thailand.firebaseapp.com",
+            projectId: "baantk-thailand",
+            storageBucket: "baantk-thailand.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
+        };
+
+        // Initialize Firebase if not already done
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.firestore();
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            loadSlips();
+            setupFilters();
+        });
+
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('th-TH');
+        }
+
+        function setupFilters() {
+            ['statusFilter', 'dateFilter', 'searchFilter'].forEach(id => {
+                document.getElementById(id).addEventListener('change', filterSlips);
+                document.getElementById(id).addEventListener('input', filterSlips);
+            });
+        }
+
+        async function loadSlips() {
+            showLoading();
+            try {
+                const snapshot = await db.collection('paymentSlips')
+                    .orderBy('uploadedAt', 'desc')
+                    .get();
+
+                allSlips = [];
+                snapshot.forEach(doc => {
+                    allSlips.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+
+                updateStatistics();
+                filterSlips();
+                
+            } catch (error) {
+                console.error('Error loading slips:', error);
+                showMessage('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
+                showEmpty();
+            }
+        }
+
+        function filterSlips() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+
+            let filteredSlips = allSlips;
+
+            // Filter by status
+            if (statusFilter) {
+                filteredSlips = filteredSlips.filter(slip => slip.status === statusFilter);
+            }
+
+            // Filter by date
+            if (dateFilter) {
+                const filterDate = new Date(dateFilter);
+                filteredSlips = filteredSlips.filter(slip => {
+                    const slipDate = slip.uploadedAt?.toDate ? slip.uploadedAt.toDate() : new Date(slip.uploadedAt);
+                    return slipDate.toDateString() === filterDate.toDateString();
+                });
+            }
+
+            // Filter by search
+            if (searchFilter) {
+                filteredSlips = filteredSlips.filter(slip => 
+                    (slip.borrowerName || '').toLowerCase().includes(searchFilter) ||
+                    (slip.amount || '').toString().includes(searchFilter)
+                );
+            }
+
+            displaySlips(filteredSlips);
+        }
+
+        function displaySlips(slips) {
+            const container = document.getElementById('slipsContainer');
+            const loadingState = document.getElementById('loadingState');
+            const emptyState = document.getElementById('emptyState');
+
+            loadingState.style.display = 'none';
+            
+            if (slips.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            container.innerHTML = slips.map(slip => createSlipCard(slip)).join('');
+            
+            document.getElementById('totalSlips').textContent = `รวม: ${slips.length} สลิป`;
+        }
+
+        function createSlipCard(slip) {
+            const uploadDate = slip.uploadedAt?.toDate ? 
+                slip.uploadedAt.toDate().toLocaleDateString('th-TH') : 
+                new Date(slip.uploadedAt).toLocaleDateString('th-TH');
+            
+            const statusClass = getStatusClass(slip.status);
+            const statusText = getStatusText(slip.status);
+
+            return `
+                <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
+                     onclick="showSlipDetail('${slip.id}')">
+                    <div class="p-4">
+                        <!-- Header -->
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-medium ${statusClass} px-2 py-1 rounded-full">
+                                ${statusText}
+                            </span>
+                            <span class="text-xs text-gray-500">${uploadDate}</span>
+                        </div>
+
+                        <!-- Slip Image -->
+                        <div class="mb-3">
+                            ${slip.imageUrl ? `
+                                <img src="${slip.imageUrl}" alt="Payment Slip" 
+                                     class="w-full h-32 object-cover rounded-lg slip-image">
+                            ` : `
+                                <div class="w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-image text-gray-400 text-2xl"></i>
+                                </div>
+                            `}
+                        </div>
+
+                        <!-- Details -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">จำนวนเงิน:</span>
+                                <span class="font-semibold text-lg text-green-600">${(slip.amount || 0).toLocaleString()} ฿</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">ผู้ส่ง:</span>
+                                <span class="text-sm font-medium">${slip.borrowerName || 'ไม่ระบุ'}</span>
+                            </div>
+                            ${slip.note ? `
+                                <div class="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                                    ${slip.note}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getStatusClass(status) {
+            switch (status) {
+                case 'pending': return 'status-pending';
+                case 'approved': return 'status-approved';
+                case 'rejected': return 'status-rejected';
+                default: return 'bg-gray-100 text-gray-600';
+            }
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'pending': return 'รอตรวจสอบ';
+                case 'approved': return 'อนุมัติแล้ว';
+                case 'rejected': return 'ปฏิเสธ';
+                default: return 'ไม่ทราบสถานะ';
+            }
+        }
+
+        function updateStatistics() {
+            const pending = allSlips.filter(s => s.status === 'pending').length;
+            const approved = allSlips.filter(s => s.status === 'approved').length;
+            const rejected = allSlips.filter(s => s.status === 'rejected').length;
+            const totalAmount = allSlips.reduce((sum, s) => sum + (s.amount || 0), 0);
+
+            document.getElementById('pendingCount').textContent = pending;
+            document.getElementById('approvedCount').textContent = approved;
+            document.getElementById('rejectedCount').textContent = rejected;
+            document.getElementById('totalAmount').textContent = totalAmount.toLocaleString() + ' ฿';
+        }
+
+        async function showSlipDetail(slipId) {
+            currentSlip = allSlips.find(s => s.id === slipId);
+            if (!currentSlip) return;
+
+            const modal = document.getElementById('slipModal');
+            const detailsContainer = document.getElementById('slipDetails');
+            const actionButtons = document.getElementById('actionButtons');
+
+            const uploadDate = currentSlip.uploadedAt?.toDate ? 
+                currentSlip.uploadedAt.toDate().toLocaleString('th-TH') : 
+                new Date(currentSlip.uploadedAt).toLocaleString('th-TH');
+
+            detailsContainer.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Status -->
+                    <div class="text-center">
+                        <span class="inline-block text-sm font-medium ${getStatusClass(currentSlip.status)} px-4 py-2 rounded-full">
+                            ${getStatusText(currentSlip.status)}
+                        </span>
+                    </div>
+
+                    <!-- Slip Image -->
+                    <div class="text-center">
+                        ${currentSlip.imageUrl ? `
+                            <img src="${currentSlip.imageUrl}" alt="Payment Slip" 
+                                 class="max-w-full h-auto max-h-96 mx-auto rounded-lg shadow-md">
+                        ` : `
+                            <div class="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-image text-gray-400 text-4xl"></i>
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Details -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">จำนวนเงิน</label>
+                                <p class="text-2xl font-bold text-green-600">${(currentSlip.amount || 0).toLocaleString()} บาท</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">ผู้ส่ง</label>
+                                <p class="text-lg">${currentSlip.borrowerName || 'ไม่ระบุ'}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">วันที่อัปโหลด</label>
+                                <p>${uploadDate}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">ID สลิป</label>
+                                <p class="font-mono text-sm">${currentSlip.id}</p>
+                            </div>
+                            ${currentSlip.borrowerId ? `
+                                <div>
+                                    <label class="text-sm font-medium text-gray-600">ID ผู้กู้</label>
+                                    <p class="font-mono text-sm">${currentSlip.borrowerId}</p>
+                                </div>
+                            ` : ''}
+                            ${currentSlip.note ? `
+                                <div>
+                                    <label class="text-sm font-medium text-gray-600">หมายเหตุ</label>
+                                    <p class="text-sm bg-gray-50 p-2 rounded">${currentSlip.note}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    ${currentSlip.rejectionReason ? `
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <label class="text-sm font-medium text-red-800">เหตุผลการปฏิเสธ</label>
+                            <p class="text-red-700 mt-1">${currentSlip.rejectionReason}</p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Show/hide action buttons based on status
+            if (currentSlip.status === 'pending') {
+                actionButtons.style.display = 'flex';
+            } else {
+                actionButtons.style.display = 'none';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeSlipModal() {
+            document.getElementById('slipModal').classList.add('hidden');
+            currentSlip = null;
+        }
+
+        function showRejectModal() {
+            document.getElementById('rejectModal').classList.remove('hidden');
+        }
+
+        function closeRejectModal() {
+            document.getElementById('rejectModal').classList.add('hidden');
+            document.getElementById('rejectReason').value = '';
+        }
+
+        async function approveSlip() {
+            if (!currentSlip) return;
+
+            try {
+                await db.collection('paymentSlips').doc(currentSlip.id).update({
+                    status: 'approved',
+                    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    reviewedBy: 'admin'
+                });
+
+                showMessage('อนุมัติสลิปเรียบร้อยแล้ว', 'success');
+                closeSlipModal();
+                loadSlips();
+
+            } catch (error) {
+                console.error('Error approving slip:', error);
+                showMessage('เกิดข้อผิดพลาดในการอนุมัติ', 'error');
+            }
+        }
+
+        async function confirmReject() {
+            const reason = document.getElementById('rejectReason').value.trim();
+            if (!reason) {
+                showMessage('กรุณาระบุเหตุผลการปฏิเสธ', 'error');
+                return;
+            }
+
+            if (!currentSlip) return;
+
+            try {
+                await db.collection('paymentSlips').doc(currentSlip.id).update({
+                    status: 'rejected',
+                    rejectionReason: reason,
+                    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    reviewedBy: 'admin'
+                });
+
+                showMessage('ปฏิเสธสลิปเรียบร้อยแล้ว', 'success');
+                closeRejectModal();
+                closeSlipModal();
+                loadSlips();
+
+            } catch (error) {
+                console.error('Error rejecting slip:', error);
+                showMessage('เกิดข้อผิดพลาดในการปฏิเสธ', 'error');
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loadingState').style.display = 'block';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('slipsContainer').innerHTML = '';
+        }
+
+        function showEmpty() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('slipsContainer').innerHTML = '';
+        }
+
+        function showMessage(message, type = 'info') {
+            const container = document.getElementById('messageContainer');
+            const messageId = 'msg_' + Date.now();
+            
+            const bgColor = type === 'success' ? 'bg-green-500' : 
+                          type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            
+            const messageElement = document.createElement('div');
+            messageElement.id = messageId;
+            messageElement.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg mb-2 transform transition-all duration-300`;
+            messageElement.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>${message}</span>
+                    <button onclick="document.getElementById('${messageId}').remove()" class="ml-4 text-white hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(messageElement);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                const element = document.getElementById(messageId);
+                if (element) {
+                    element.remove();
+                }
+            }, 5000);
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('slipModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSlipModal();
+            }
+        });
+
+        document.getElementById('rejectModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeRejectModal();
+            }
+        });
+    </script>
+</body>
+</html>

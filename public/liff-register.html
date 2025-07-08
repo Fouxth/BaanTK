@@ -12,9 +12,90 @@
         .image-preview { transition: all 0.3s ease; }
         .upload-area { transition: all 0.3s ease; }
         .upload-area:hover { transform: translateY(-2px); }
+        
+        /* Enhanced calculation preview styles */
+        .calculation-preview {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 2px solid #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        
+        .calculation-preview:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        }
+        
+        /* Enhanced form inputs */
+        .form-input {
+            transition: all 0.3s ease;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .form-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            transform: translateY(-1px);
+        }
+        
+        /* Section headers */
+        .section-header {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border-left: 4px solid #3b82f6;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        /* Enhanced button */
+        .submit-button {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .submit-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+        }
+        
+        .submit-button:active {
+            transform: translateY(0);
+        }
+        
+        /* Toast notification styles */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            min-width: 300px;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: white;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .toast.show {
+            opacity: 1;
+        }
+        
+        .toast.success {
+            background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+        }
+        
+        .toast.error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+
     <div class="min-h-screen gradient-bg py-6 flex flex-col justify-center sm:py-12">
         <div class="relative py-3 sm:max-w-xl sm:mx-auto">
             <div class="absolute inset-0 bg-gradient-to-r from-green-400 to-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl card-shadow"></div>
@@ -22,33 +103,43 @@
                 
                 <!-- Header -->
                 <div class="text-center mb-8">
-                    <h1 class="text-2xl font-bold text-gray-800 mb-2">ลงทะเบียนผู้กู้เงิน</h1>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">ลงทะเบียนผู้กู้เงิน</h1>
                     <p class="text-gray-600 text-sm">กรอกข้อมูลให้ครบถ้วนเพื่อสมัครกู้เงิน</p>
                 </div>
 
                 <form id="loanForm" class="space-y-6">
                     <!-- ข้อมูลส่วนตัว -->
                     <div class="space-y-4">
-                        <div class="text-sm font-medium text-gray-700 mb-2">👤 ข้อมูลส่วนตัว</div>
+                        <div class="section-header">
+                            <div class="flex items-center text-lg font-semibold text-gray-800">
+                                <span class="text-2xl mr-2">👤</span>
+                                <span>ข้อมูลส่วนตัว</span>
+                            </div>
+                        </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="text" name="firstName" placeholder="ชื่อ" required 
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" />
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400" />
                             <input type="text" name="lastName" placeholder="นามสกุล" required 
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" />
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400" />
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="date" name="birthDate" required 
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" />
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400" />
                             <input type="text" name="idCard" placeholder="เลขบัตรประชาชน 13 หลัก" maxlength="13" required 
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" />
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400" />
                         </div>
                     </div>
 
                     <!-- ช่องอัปโหลดรูปภาพ (รวมเป็นช่องเดียว) -->
                     <div class="space-y-4">
-                        <div class="text-sm font-medium text-gray-700 mb-2">📷 อัปโหลดรูปภาพ</div>
+                        <div class="section-header">
+                            <div class="flex items-center text-lg font-semibold text-gray-800">
+                                <span class="text-2xl mr-2">📷</span>
+                                <span>อัปโหลดรูปภาพ</span>
+                            </div>
+                        </div>
                         
                         <div class="relative">
                             <label class="block text-xs font-medium text-gray-600 mb-2">รูปบัตรประชาชน และรูปถ่ายผู้สมัครคู่กัน *</label>
@@ -82,11 +173,16 @@
 
                     <!-- ช่องที่อยู่ -->
                     <div class="space-y-4">
-                        <div class="text-sm font-medium text-gray-700 mb-2">🏠 ข้อมูลที่อยู่</div>
+                        <div class="section-header">
+                            <div class="flex items-center text-lg font-semibold text-gray-800">
+                                <span class="text-2xl mr-2">🏠</span>
+                                <span>ข้อมูลที่อยู่</span>
+                            </div>
+                        </div>
                         
                         <div class="relative">
                             <textarea name="addressOnId" id="addressOnId" placeholder="ที่อยู่ตามบัตรประชาชน" required
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 min-h-[80px] resize-none"></textarea>
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400 min-h-[80px] resize-none"></textarea>
                             <div class="absolute top-2 right-2">
                                 <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">ตามบัตร</span>
                             </div>
@@ -94,10 +190,10 @@
                         
                         <div class="relative">
                             <textarea name="currentAddress" id="currentAddress" placeholder="ที่อยู่ปัจจุบัน (สามารถแก้ไขได้)" required
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 min-h-[80px] resize-none"></textarea>
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400 min-h-[80px] resize-none"></textarea>
                             <div class="absolute top-2 right-2">
                                 <button type="button" id="copy-address" 
-                                    class="text-xs text-blue-500 bg-blue-100 px-2 py-1 rounded hover:bg-blue-200">
+                                    class="text-xs text-blue-500 bg-blue-100 px-3 py-1 rounded-full hover:bg-blue-200 transition-all">
                                     คัดลอกจากบัตร
                                 </button>
                             </div>
@@ -106,26 +202,48 @@
 
                     <!-- ข้อมูลการกู้เงิน -->
                     <div class="space-y-4">
-                        <div class="text-sm font-medium text-gray-700 mb-2">💰 ข้อมูลการกู้เงิน</div>
+                        <div class="section-header">
+                            <div class="flex items-center text-lg font-semibold text-gray-800">
+                                <span class="text-2xl mr-2">💰</span>
+                                <span>ข้อมูลการกู้เงิน</span>
+                            </div>
+                        </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="number" name="amount" placeholder="จำนวนเงินที่ต้องการกู้ (บาท)" min="1000" max="100000" required 
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400" />
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400" />
                             <select name="frequency" required 
-                                class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-green-400">
+                                class="form-input w-full p-3 rounded-lg focus:ring-2 focus:ring-green-400">
                                 <option value="">เลือกรูปแบบชำระ</option>
-                                <option value="daily">รายวัน (ดอกเบี้ย 20%)</option>
-                                <option value="weekly">รายอาทิตย์ (ดอกเบี้ย 15%)</option>
-                                <option value="monthly">รายเดือน (ดอกเบี้ย 10%)</option>
+                                <option value="daily">📅 รายวัน (ดอกเบี้ย 20%)</option>
+                                <option value="weekly">📅 รายอาทิตย์ (ดอกเบี้ย 15%)</option>
+                                <option value="monthly">📅 รายเดือน (ดอกเบี้ย 10%)</option>
                             </select>
+                        </div>
+                        
+                        <!-- แสดงการคำนวณ -->
+                        <div id="calculation-preview" class="calculation-preview hidden rounded-xl p-5 border-2 border-blue-200">
+                            <h4 class="text-base font-semibold text-gray-800 mb-4 flex items-center">
+                                <span class="text-xl mr-2">💡</span>
+                                ตัวอย่างการคำนวณ:
+                            </h4>
+                            <div id="calculation-details" class="text-sm text-gray-700 space-y-2">
+                                <!-- Calculation details will be inserted here -->
+                            </div>
                         </div>
                     </div>
 
                     <!-- ปุ่มส่งข้อมูล -->
-                    <button type="submit" 
-                        class="w-full bg-gradient-to-r from-green-500 to-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:from-green-600 hover:to-blue-700 transition duration-300 transform hover:scale-105">
-                        📝 ส่งข้อมูลลงทะเบียน
-                    </button>
+                    <div class="pt-4">
+                        <button type="submit" id="submit-btn"
+                            class="submit-button w-full text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-2">
+                            <span>📝</span>
+                            <span id="submit-text">ส่งข้อมูลลงทะเบียน</span>
+                            <div id="submit-spinner" class="hidden ml-2">
+                                <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -134,6 +252,18 @@
     <script>
         let userId = null;
         let uploadedImages = [];
+
+        // Toast notification function
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
 
         // LIFF Initialization
         async function initializeLiff() {
@@ -144,12 +274,13 @@
                     const profile = await liff.getProfile();
                     userId = profile.userId;
                     console.log('👤 User ID:', userId);
+                    showToast('เชื่อมต่อ LINE สำเร็จ', 'success');
                 } else {
                     liff.login();
                 }
             } catch (error) {
                 console.error('❌ LIFF init error:', error);
-                alert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ LINE');
+                showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ LINE', 'error');
             }
         }
 
@@ -184,7 +315,7 @@
             if (files.length === 0) return;
             
             if (files.length > 2) {
-                alert('⚠️ สามารถอัปโหลดได้สูงสุด 2 รูป (บัตรประชาชน + รูปถ่าย)');
+                showToast('สามารถอัปโหลดได้สูงสุด 2 รูป (บัตรประชาชน + รูปถ่าย)', 'error');
                 return;
             }
 
@@ -195,12 +326,12 @@
                 for (let file of files) {
                     // Validate file
                     if (!file.type.startsWith('image/')) {
-                        alert('⚠️ กรุณาเลือกไฟล์รูปภาพเท่านั้น');
+                        showToast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'error');
                         return;
                     }
 
                     if (file.size > 5 * 1024 * 1024) {
-                        alert('⚠️ ขนาดไฟล์ต้องไม่เกิน 5MB');
+                        showToast('ขนาดไฟล์ต้องไม่เกิน 5MB', 'error');
                         return;
                     }
 
@@ -230,7 +361,7 @@
 
             } catch (error) {
                 console.error('Error processing images:', error);
-                alert('❌ เกิดข้อผิดพลาดในการประมวลผลรูปภาพ');
+                showToast('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ', 'error');
             }
         }
 
@@ -247,20 +378,71 @@
         // Copy address function
         document.getElementById('copy-address').addEventListener('click', () => {
             const addressOnId = document.getElementById('addressOnId').value;
-            document.getElementById('currentAddress').value = addressOnId;
+            if (addressOnId.trim()) {
+                document.getElementById('currentAddress').value = addressOnId;
+                showToast('คัดลอกที่อยู่สำเร็จ', 'success');
+            } else {
+                showToast('กรุณากรอกที่อยู่ตามบัตรประชาชนก่อน', 'error');
+            }
         });
+
+        // Amount and frequency change handlers for calculation preview
+        document.querySelector('input[name="amount"]').addEventListener('input', updateCalculation);
+        document.querySelector('select[name="frequency"]').addEventListener('change', updateCalculation);
+
+        function updateCalculation() {
+            const amount = parseFloat(document.querySelector('input[name="amount"]').value) || 0;
+            const frequency = document.querySelector('select[name="frequency"]').value;
+            
+            if (amount > 0 && frequency) {
+                const rates = { daily: 0.2, weekly: 0.15, monthly: 0.1 };
+                const rate = rates[frequency];
+                const interest = amount * rate;
+                const total = amount + interest;
+                
+                const freqText = { 
+                    daily: 'วัน', 
+                    weekly: 'อาทิตย์', 
+                    monthly: 'เดือน' 
+                };
+                
+                document.getElementById('calculation-details').innerHTML = `
+                    <div class="flex justify-between items-center py-1">
+                        <span>💰 เงินต้น:</span>
+                        <span class="font-medium">${amount.toLocaleString()} บาท</span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span>📈 ดอกเบี้ย (${(rate * 100)}%):</span>
+                        <span class="font-medium">${interest.toLocaleString()} บาท</span>
+                    </div>
+                    <div class="border-t border-gray-300 pt-2 mt-2">
+                        <div class="flex justify-between items-center font-semibold text-gray-800">
+                            <span>💵 รวมที่ต้องชำระ:</span>
+                            <span class="text-lg">${total.toLocaleString()} บาท</span>
+                        </div>
+                        <div class="text-xs text-gray-600 mt-1 text-center">
+                            *ชำระทุก${freqText[frequency]}
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('calculation-preview').classList.remove('hidden');
+            } else {
+                document.getElementById('calculation-preview').classList.add('hidden');
+            }
+        }
 
         // Form submission
         document.getElementById('loanForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             if (!userId) {
-                alert('❌ กรุณารอการเชื่อมต่อ LINE');
+                showToast('กรุณารอการเชื่อมต่อ LINE', 'error');
                 return;
             }
 
             if (uploadedImages.length === 0) {
-                alert('⚠️ กรุณาอัปโหลดรูปภาพก่อนส่งข้อมูล');
+                showToast('กรุณาอัปโหลดรูปภาพก่อนส่งข้อมูล', 'error');
                 return;
             }
 
@@ -286,29 +468,33 @@
             }
 
             if (missingFields.length > 0) {
-                alert(`⚠️ กรุณากรอกข้อมูลให้ครบถ้วน:\n${missingFields.join('\n')}`);
+                showToast(`กรุณากรอกข้อมูลให้ครบถ้วน: ${missingFields.join(', ')}`, 'error');
                 return;
             }
 
             // ตรวจสอบเลขบัตรประชาชน
             const idCard = formData.get('idCard').replace(/\D/g, '');
             if (idCard.length !== 13) {
-                alert('❌ เลขบัตรประชาชนต้องมี 13 หลัก');
+                showToast('เลขบัตรประชาชนต้องมี 13 หลัก', 'error');
                 return;
             }
 
             // ตรวจสอบจำนวนเงิน
             const amount = parseFloat(formData.get('amount'));
             if (isNaN(amount) || amount < 1000 || amount > 100000) {
-                alert('❌ จำนวนเงินต้องอยู่ระหว่าง 1,000 - 100,000 บาท');
+                showToast('จำนวนเงินต้องอยู่ระหว่าง 1,000 - 100,000 บาท', 'error');
                 return;
             }
 
             try {
-                const submitBtn = e.target.querySelector('button[type="submit"]');
-                const originalText = submitBtn.textContent;
-                submitBtn.textContent = '📤 กำลังส่งข้อมูล...';
+                // Show loading state
+                const submitBtn = document.getElementById('submit-btn');
+                const submitText = document.getElementById('submit-text');
+                const submitSpinner = document.getElementById('submit-spinner');
+                
                 submitBtn.disabled = true;
+                submitText.textContent = 'กำลังส่งข้อมูล...';
+                submitSpinner.classList.remove('hidden');
 
                 const formData = Object.fromEntries(new FormData(e.target));
                 formData.userId = userId;
@@ -355,41 +541,57 @@
                     console.log('✅ Success:', result);
 
                     // Show success message
-                    alert('✅ ลงทะเบียนสำเร็จ! ระบบจะแจ้งผลการพิจารณาภายใน 24 ชั่วโมง');
+                    showToast('ลงทะเบียนสำเร็จ! ระบบจะแจ้งผลการพิจารณาภายใน 24 ชั่วโมง', 'success');
                     
-                    // Close LIFF
-                    if (liff.isInClient()) {
-                        liff.closeWindow();
-                    }
+                    // Close LIFF after delay
+                    setTimeout(() => {
+                        if (liff.isInClient()) {
+                            liff.closeWindow();
+                        }
+                    }, 2000);
                 } else {
                     const error = await response.json();
                     console.error('❌ Error response:', error);
                     
                     // Handle specific error types
                     if (response.status === 429) {
-                        alert(`⏰ ${error.message || 'ยื่นคำขอเกินจำนวนที่กำหนด กรุณารอ 5 นาทีแล้วลองใหม่'}`);
+                        showToast(error.message || 'ยื่นคำขอเกินจำนวนที่กำหนด กรุณารอ 5 นาทีแล้วลองใหม่', 'error');
                     } else if (response.status === 409) {
-                        alert('⚠️ มีการยื่นคำขอที่อยู่ในระหว่างการพิจารณาแล้ว');
+                        showToast('มีการยื่นคำขอที่อยู่ในระหว่างการพิจารณาแล้ว', 'error');
                     } else if (response.status === 403) {
-                        alert('🚫 ไม่สามารถยื่นคำขอได้ กรุณาติดต่อเจ้าหน้าที่');
+                        showToast('ไม่สามารถยื่นคำขอได้ กรุณาติดต่อเจ้าหน้าที่', 'error');
                     } else if (response.status === 400 && error.details) {
                         // Show validation errors in detail
-                        const errorDetails = Array.isArray(error.details) ? error.details.join('\\n') : error.details;
-                        alert(`❌ ข้อมูลไม่ถูกต้อง:\\n${errorDetails}`);
+                        const errorDetails = Array.isArray(error.details) ? error.details.join(', ') : error.details;
+                        showToast(`ข้อมูลไม่ถูกต้อง: ${errorDetails}`, 'error');
                     } else {
-                        alert(`❌ เกิดข้อผิดพลาด: ${error.message || 'ไม่สามารถส่งข้อมูลได้'}`);
+                        showToast(error.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล', 'error');
                     }
                 }
 
             } catch (error) {
                 console.error('❌ Submit error:', error);
-                alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่');
+                showToast('เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่', 'error');
             } finally {
-                const submitBtn = e.target.querySelector('button[type="submit"]');
-                submitBtn.textContent = '📝 ส่งข้อมูลลงทะเบียน';
+                // Reset loading state
+                const submitBtn = document.getElementById('submit-btn');
+                const submitText = document.getElementById('submit-text');
+                const submitSpinner = document.getElementById('submit-spinner');
+                
                 submitBtn.disabled = false;
+                submitText.textContent = 'ส่งข้อมูลลงทะเบียน';
+                submitSpinner.classList.add('hidden');
             }
         });
+
+        // Format ID card input
+        document.querySelector('input[name="idCard"]').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            e.target.value = value.slice(0, 13);
+        });
+
+        // Initialize when page loads
+        window.addEventListener('load', initializeLiff);
     </script>
 </body>
 </html>

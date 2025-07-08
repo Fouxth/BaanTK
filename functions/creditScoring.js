@@ -355,10 +355,18 @@ class CreditScoringService {
     return "very_high";
   }
 
-  // Get approval recommendation
+  // Get approval recommendation (ปิดการอนุมัติอัตโนมัติ)
   getRecommendation(score, userData) {
     const riskLevel = this.getRiskLevel(score);
 
+    // ปิดการอนุมัติอัตโนมัติ - ทุกคำขอต้องผ่านการอนุมัติจากแอดมิน
+    if (riskLevel === "very_high") {
+      return "reject_recommended";
+    } else {
+      return "manual_review_required";
+    }
+
+    /* เก็บไว้สำหรับการใช้งานในอนาคต
     if (riskLevel === "low" && userData.amount <= 10000) {
       return "auto_approve";
     } else if (riskLevel === "low" || riskLevel === "medium") {
@@ -368,13 +376,19 @@ class CreditScoringService {
     } else {
       return "reject_recommended";
     }
+    */
   }
 
-  // Check auto-approval eligibility
+  // Check auto-approval eligibility (ปิดการอนุมัติอัตโนมัติ)
   isAutoApprovalEligible(score, userData) {
+    // ปิดการอนุมัติอัตโนมัติทั้งหมด
+    return false;
+    
+    /* เก็บไว้สำหรับการใช้งานในอนาคต
     return score >= 700 &&
                userData.amount <= 10000 &&
                ["weekly", "monthly"].includes(userData.frequency);
+    */
   }
 
   // Calculate age from birth date string

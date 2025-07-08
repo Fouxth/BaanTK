@@ -279,15 +279,29 @@ router.post("/approve", async (req, res) => {
       updateData.approvedAmount = borrowerData.amount || borrowerData.requestedAmount;
       updateData.disbursementStatus = "pending_contract";
 
-      // Generate and save contract
-      const loanTerms = borrowerData.loanTerms || loanHelpers.calculateLoanTerms(borrowerData, borrowerData.creditAssessment);
-      const settings = await loanHelpers.getSystemSettings();
-
-      const contractData = ContractService.generateContract(borrowerData, loanTerms, settings);
-      const contractId = await ContractService.saveContract(contractData, borrowerId);
-
-      updateData.contractId = contractId;
-      updateData.contractGenerated = true;
+      // Create enhanced contract using ContractService
+      try {
+        const contractService = new ContractService();
+        
+        // Generate contract with borrower data
+        const { contractId, contractData } = await contractService.generateContractWithBorrowerData(borrowerId);
+        
+        updateData.contractId = contractId;
+        updateData.contractGenerated = true;
+        updateData.contractUrl = `https://baan-tk.web.app/contract-sign.html?contractId=${contractId}`;
+        
+        console.log(`📄 Contract generated for borrower ${borrowerId}: ${contractId}`);
+        
+        // Send approval notification with contract link
+        const { sendApprovalNotificationWithContract } = require('./dashboard');
+        await sendApprovalNotificationWithContract(borrowerData, contractId);
+        
+      } catch (contractError) {
+        console.error("Error generating contract:", contractError);
+        // Continue with approval but log the error
+        updateData.contractError = contractError.message;
+        updateData.disbursementStatus = "manual_review_required";
+      }
     }
 
     // Update borrower record
